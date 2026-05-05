@@ -47,8 +47,8 @@ class RadiusRemediator:
         )
         return session.exec_ok(add_cmd)
 
-    def _remove_radius_entries(self, session: SSHSession) -> bool:
-        remove_cmd = MikroTikCommands.radius_remove(
+    def _remove_duplicate_radius_entries(self, session: SSHSession) -> bool:
+        remove_cmd = MikroTikCommands.radius_remove_duplicates_keep_first(
             service=self.config.radius_service,
             address=self.config.radius_addr,
         )
@@ -65,9 +65,8 @@ class RadiusRemediator:
         if radius_count == 0:
             return self._add_radius_entry(session), False
         if radius_count > 1:
-            removed = self._remove_radius_entries(session)
-            added = self._add_radius_entry(session)
-            return False, removed and added
+            deduplicated = self._remove_duplicate_radius_entries(session)
+            return False, deduplicated
         return False, False
 
     def ensure_radius(self, session: SSHSession) -> RadiusResult:
@@ -92,4 +91,20 @@ class RadiusRemediator:
                 result.aaa_enabled = True
 
         result.aaa_present_after = self._get_aaa_state(session)
+        return result
+
+    def inspect_radius(self, session: SSHSession) -> RadiusResult:
+        result = RadiusResult()
+
+        radius_count = self._get_radius_count(session)
+        result.radius_present_after = radius_count == 1
+        result.aaa_present_after = self._get_aaa_state(session)
+
+        self.logger.info(
+            "RADIUS inspection finished ip=%s radius_present=%s aaa_present=%s count=%s",
+            session.ip,
+            result.radius_present_after,
+            result.aaa_present_after,
+            radius_count,
+        )
         return result

@@ -1,3 +1,44 @@
+radius:
+  address: 10.216.40.3
+  secret: fXJnutML8N
+  service: login
+
+ntp:
+  enabled: "yes"
+  servers:
+    - 10.216.8.10
+
+scheduler:
+  enabled: true
+  expected:
+    - name: reboot-night
+      interval: 1d
+      on_event: /system reboot
+      policy: ftp,reboot,read,write,policy,test,password,sniff,sensitive,romon
+      start_time_mode: staggered
+      time_window_start: 02:00:00
+      time_window_end: 04:00:00
+      slot_minutes: 10
+      seed_by: ip
+      disabled: "no"
+
+    - name: reboot-evening
+      interval: 1d
+      on_event: /system reboot
+      policy: ftp,reboot,read,write,policy,test,password,sniff,sensitive,romon
+      start_time_mode: staggered
+      time_window_start: 18:00:00
+      time_window_end: 20:00:00
+      slot_minutes: 10
+      seed_by: ip
+      disabled: "no"
+
+watchdog:
+  automatic_supout: "no"
+  ping_start_after_boot: 0ms
+  ping_timeout: 10s
+  watchdog_timer: "no"
+
 vlans:
 
   - id: 850

@@ -537,6 +537,21 @@ def config_command(show_secrets: bool, output_format: str) -> None:
     for key, value in snapshot["google"].items():
         _print_key_value(key, value)
 
+    click.echo("")
+    _print_section("NTP")
+    for key, value in snapshot["ntp"].items():
+        _print_key_value(key, value)
+
+    click.echo("")
+    _print_section("Scheduler")
+    for key, value in snapshot["scheduler"].items():
+        _print_key_value(key, value)
+
+    click.echo("")
+    _print_section("Watchdog")
+    for key, value in snapshot["watchdog"].items():
+        _print_key_value(key, value)
+
 
 @cli.command(
     "doctor",

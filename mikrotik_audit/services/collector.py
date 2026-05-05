@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import logging
+from collections import Counter
+from typing import Any
 
 from commands.mikrotik import MikroTikCommands
 from models import DeviceInfo
 from services.ssh import SSHSession
-from utils import parse_colon_output, parse_detail_blocks, parse_interface_brief
+from utils import parse_colon_output, parse_detail_blocks, parse_interface_brief, safe_int
 
 
 class MikroTikCollector:
@@ -18,26 +20,35 @@ class MikroTikCollector:
             return ""
 
         lines = [line.strip() for line in raw.splitlines() if line.strip()]
-        if not lines:
-            return ""
-
-        return lines[-1]
+        return lines[-1] if lines else ""
 
     @staticmethod
-    def _join_names(
+    def _get(item: dict[str, Any], *keys: str) -> str:
+        for key in keys:
+            value = item.get(key)
+            if value not in ("", None):
+                return str(value).strip()
+        return ""
+
+    @staticmethod
+    def _join_values(
         blocks: list[dict[str, str]],
         *keys: str,
+        limit: int = 30,
     ) -> str:
-        names: list[str] = []
+        values: list[str] = []
 
         for block in blocks:
             for key in keys:
                 value = str(block.get(key, "")).strip()
                 if value:
-                    names.append(value)
+                    values.append(value)
                     break
 
-        return ", ".join(names)
+        if len(values) > limit:
+            return ", ".join(values[:limit]) + f", ... +{len(values) - limit}"
+
+        return ", ".join(values)
 
     @staticmethod
     def _find_service_port(
@@ -52,8 +63,10 @@ class MikroTikCollector:
 
             disabled = str(block.get("disabled", "")).strip().lower()
             port = str(block.get("port", "")).strip()
+
             if disabled in {"true", "yes", "1"}:
                 return f"disabled:{port}" if port else "disabled"
+
             return port
 
         return ""
@@ -62,10 +75,12 @@ class MikroTikCollector:
     def _find_primary_mac(interfaces: list[dict[str, object]]) -> str:
         for item in interfaces:
             if item.get("running") and item.get("mac_address"):
-                return str(item.get("mac_address", ""))
+                return str(item["mac_address"])
+
         for item in interfaces:
             if item.get("mac_address"):
-                return str(item.get("mac_address", ""))
+                return str(item["mac_address"])
+
         return ""
 
     @staticmethod
@@ -80,7 +95,6 @@ class MikroTikCollector:
         interfaces: list[dict[str, object]],
         neighbor: dict[str, str],
     ) -> tuple[str, str]:
-        # 1. По соседу
         if neighbor:
             iface = neighbor.get("interface", "")
             for item in interfaces:
@@ -89,23 +103,303 @@ class MikroTikCollector:
             if iface:
                 return iface, ""
 
-        # 2. По комментарию uplink
         for item in interfaces:
             comment = str(item.get("comment", "")).lower()
-            if "uplink" in comment:
+            name = str(item.get("name", "")).lower()
+
+            if "uplink" in comment or "uplink" in name or name.startswith("sfp"):
                 return str(item.get("name", "")), str(item.get("mac_address", ""))
 
-        # 3. Первый running non-slave
         for item in interfaces:
             if item.get("running") and not item.get("slave"):
                 return str(item.get("name", "")), str(item.get("mac_address", ""))
 
-        # 4. Первый running
         for item in interfaces:
             if item.get("running"):
                 return str(item.get("name", "")), str(item.get("mac_address", ""))
 
         return "", ""
+
+    @staticmethod
+    def _summarize_ospf_neighbors(blocks: list[dict[str, str]]) -> dict[str, str]:
+        states = Counter()
+        unstable = 0
+        dr = ""
+        bdr = ""
+
+        for item in blocks:
+            state = str(item.get("state", "")).strip().lower()
+            states[state or "unknown"] += 1
+
+            changes = safe_int(item.get("state_changes", "0")) or 0
+            if changes >= 10:
+                unstable += 1
+
+            if not dr:
+                dr = str(item.get("dr", "")).strip()
+            if not bdr:
+                bdr = str(item.get("bdr", "")).strip()
+
+        return {
+            "ospf_full_neighbors": str(states.get("full", 0)),
+            "ospf_twoway_neighbors": str(states.get("twoway", 0)),
+            "ospf_other_neighbors": str(
+                sum(count for state, count in states.items() if state not in {"full", "twoway"})
+            ),
+            "ospf_unstable_neighbors": str(unstable),
+            "ospf_dr": dr,
+            "ospf_bdr": bdr,
+        }
+
+    @staticmethod
+    def _summarize_bridge(blocks: list[dict[str, str]]) -> dict[str, str]:
+        if not blocks:
+            return {
+                "bridge_protocol_modes": "",
+                "bridge_vlan_filtering": "",
+                "bridge_igmp_snooping": "",
+                "bridge_warning": "",
+            }
+
+        protocol_modes = []
+        vlan_filtering = []
+        igmp_snooping = []
+        warnings = []
+
+        for item in blocks:
+            name = item.get("name", "")
+            protocol = item.get("protocol_mode", "")
+            vlan = item.get("vlan_filtering", "")
+            igmp = item.get("igmp_snooping", "")
+
+            if protocol:
+                protocol_modes.append(f"{name}:{protocol}" if name else protocol)
+            if vlan:
+                vlan_filtering.append(f"{name}:{vlan}" if name else vlan)
+            if igmp:
+                igmp_snooping.append(f"{name}:{igmp}" if name else igmp)
+
+            if protocol == "none":
+                warnings.append(f"{name}:STP_DISABLED" if name else "STP_DISABLED")
+
+        return {
+            "bridge_protocol_modes": ", ".join(protocol_modes),
+            "bridge_vlan_filtering": ", ".join(vlan_filtering),
+            "bridge_igmp_snooping": ", ".join(igmp_snooping),
+            "bridge_warning": ", ".join(warnings),
+        }
+
+
+    @staticmethod
+    def _split_ports(value: str) -> list[str]:
+        if not value:
+            return []
+
+        return [
+            item.strip()
+            for item in value.replace(",", " ").split()
+            if item.strip()
+        ]
+
+
+    @staticmethod
+    def _split_vlan_ids(value: str) -> list[str]:
+        if not value:
+            return []
+
+        result: list[str] = []
+
+        for part in value.replace(",", " ").split():
+            part = part.strip()
+
+            if "-" in part:
+                start, end = part.split("-", 1)
+                if start.isdigit() and end.isdigit():
+                    result.extend(str(vlan_id) for vlan_id in range(int(start), int(end) + 1))
+                continue
+
+            if part:
+                result.append(part)
+
+        return result
+
+
+    @staticmethod
+    def _vlan_hex(vlan_id: str) -> str:
+        try:
+            return f"0x{int(vlan_id):04X}"
+        except Exception:
+            return ""
+
+
+    @classmethod
+    def _build_vlan_table(
+        cls,
+        *,
+        identity: str,
+        vlan_blocks: list[dict[str, str]],
+        bridge_vlan_blocks: list[dict[str, str]],
+        bridge_port_blocks: list[dict[str, str]],
+    ) -> list[dict[str, Any]]:
+        vlan_interfaces_by_id: dict[str, list[dict[str, str]]] = {}
+
+        for item in vlan_blocks:
+            vlan_id = item.get("vlan_id", "")
+            if not vlan_id:
+                continue
+
+            vlan_interfaces_by_id.setdefault(vlan_id, []).append(
+                {
+                    "name": item.get("name", ""),
+                    "interface": item.get("interface", ""),
+                    "mtu": item.get("mtu", ""),
+                    "mac_address": item.get("mac_address", ""),
+                }
+            )
+
+        pvid_ports_by_vlan: dict[str, list[str]] = {}
+
+        for item in bridge_port_blocks:
+            pvid = item.get("pvid", "")
+            interface = item.get("interface", "")
+
+            if pvid and interface:
+                pvid_ports_by_vlan.setdefault(pvid, []).append(interface)
+
+        rows_by_vlan: dict[str, dict[str, Any]] = {}
+
+        for item in bridge_vlan_blocks:
+            bridge = item.get("bridge", "")
+            vlan_ids = cls._split_vlan_ids(item.get("vlan_ids", ""))
+            tagged_ports = cls._split_ports(item.get("tagged", ""))
+            untagged_ports = cls._split_ports(item.get("untagged", ""))
+
+            for vlan_id in vlan_ids:
+                rows_by_vlan[vlan_id] = {
+                    "device_identity": identity,
+                    "vlan_id": vlan_id,
+                    "vlan_hex": cls._vlan_hex(vlan_id),
+                    "bridge": bridge,
+                    "vlan_interfaces": vlan_interfaces_by_id.get(vlan_id, []),
+                    "tagged_ports": tagged_ports,
+                    "untagged_ports": untagged_ports,
+                    "pvid_ports": pvid_ports_by_vlan.get(vlan_id, []),
+                    "source": {
+                        "interface_vlan": bool(vlan_interfaces_by_id.get(vlan_id)),
+                        "bridge_vlan": True,
+                        "bridge_port": bool(pvid_ports_by_vlan.get(vlan_id)),
+                    },
+                }
+
+        for vlan_id, vlan_interfaces in vlan_interfaces_by_id.items():
+            if vlan_id in rows_by_vlan:
+                continue
+
+            rows_by_vlan[vlan_id] = {
+                "device_identity": identity,
+                "vlan_id": vlan_id,
+                "vlan_hex": cls._vlan_hex(vlan_id),
+                "bridge": "",
+                "vlan_interfaces": vlan_interfaces,
+                "tagged_ports": [],
+                "untagged_ports": [],
+                "pvid_ports": pvid_ports_by_vlan.get(vlan_id, []),
+                "source": {
+                    "interface_vlan": True,
+                    "bridge_vlan": False,
+                    "bridge_port": bool(pvid_ports_by_vlan.get(vlan_id)),
+                },
+            }
+
+        return sorted(rows_by_vlan.values(), key=lambda row: int(row["vlan_id"]))
+
+
+    @staticmethod
+    def _summarize_bridge_ports(blocks: list[dict[str, str]]) -> dict[str, str]:
+        hw = 0
+        restricted = []
+        access_ports = []
+        trunk_like_ports = []
+
+        for item in blocks:
+            iface = item.get("interface", "")
+            if item.get("hw") in {"yes", "true"} or "H" in item.get("flags", ""):
+                hw += 1
+
+            if item.get("restricted_role") == "yes":
+                restricted.append(iface)
+
+            pvid = item.get("pvid", "")
+            frame_types = item.get("frame_types", "")
+
+            if pvid and pvid != "1":
+                access_ports.append(f"{iface}:pvid={pvid}")
+
+            if frame_types in {"admit-only-vlan-tagged", "admit-all"}:
+                trunk_like_ports.append(f"{iface}:{frame_types}")
+
+        return {
+            "bridge_hw_offload_ports": str(hw),
+            "bridge_restricted_role_ports": ", ".join(restricted),
+            "bridge_access_ports": ", ".join(access_ports),
+            "bridge_trunk_like_ports": ", ".join(trunk_like_ports),
+        }
+
+    @staticmethod
+    def _summarize_routes(blocks: list[dict[str, str]]) -> dict[str, str]:
+        default_routes = 0
+        disabled = 0
+        dynamic = 0
+        static = 0
+
+        for item in blocks:
+            dst = (
+                item.get("dst_address")
+                or item.get("dst-address")
+                or item.get("dst")
+                or ""
+            )
+
+            flags = item.get("flags", "")
+
+            if str(dst).strip() == "0.0.0.0/0":
+                default_routes += 1
+            if item.get("disabled") == "yes" or "X" in flags:
+                disabled += 1
+            if item.get("dynamic") == "yes" or "D" in flags:
+                dynamic += 1
+            if item.get("static") == "yes" or "S" in flags:
+                static += 1
+
+        return {
+            "default_route_count": str(default_routes),
+            "disabled_route_count": str(disabled),
+            "dynamic_route_count": str(dynamic),
+            "static_route_count": str(static),
+        }
+
+    @staticmethod
+    def _summarize_firewall(blocks: list[dict[str, str]]) -> dict[str, str]:
+        disabled = 0
+        drops = 0
+        accepts = 0
+
+        for item in blocks:
+            action = item.get("action", "").lower()
+            flags = item.get("flags", "")
+
+            if item.get("disabled") == "yes" or "X" in flags:
+                disabled += 1
+            if action == "drop":
+                drops += 1
+            if action == "accept":
+                accepts += 1
+
+        return {
+            "firewall_filter_disabled_count": str(disabled),
+            "firewall_filter_drop_count": str(drops),
+            "firewall_filter_accept_count": str(accepts),
+        }
 
     def collect_router_data(self, session: SSHSession) -> DeviceInfo | None:
         self.logger.debug(
@@ -175,6 +469,21 @@ class MikroTikCollector:
         neighbor = self._find_neighbor(neighbor_blocks)
         uplink_interface, uplink_mac = self._find_uplink_interface(interfaces, neighbor)
 
+        ospf_summary = self._summarize_ospf_neighbors(ospf_neighbor_blocks)
+        bridge_summary = self._summarize_bridge(bridge_blocks)
+        bridge_port_summary = self._summarize_bridge_ports(bridge_port_blocks)
+        route_summary = self._summarize_routes(route_blocks)
+        firewall_summary = self._summarize_firewall(firewall_filter_blocks)
+        bridge_vlan_out = session.exec(MikroTikCommands.BRIDGE_VLAN_DETAIL)
+        bridge_vlan_blocks = parse_detail_blocks(bridge_vlan_out or "")
+
+        vlan_table = self._build_vlan_table(
+    identity=identity.get("name", ""),
+    vlan_blocks=vlan_blocks,
+    bridge_vlan_blocks=bridge_vlan_blocks,
+    bridge_port_blocks=bridge_port_blocks,
+)
+
         result = DeviceInfo(
             identity=identity.get("name", ""),
             version=resource.get("version", ""),
@@ -198,15 +507,15 @@ class MikroTikCollector:
             neighbor_address=neighbor.get("address", ""),
             neighbor_interface=neighbor.get("interface", ""),
             neighbor_mac=neighbor.get("mac_address", ""),
-            installed_packages=self._join_names(package_blocks, "name"),
+            installed_packages=self._join_values(package_blocks, "name"),
             ospf_instance_count=str(len(ospf_instance_blocks)),
             ospf_neighbor_count=str(len(ospf_neighbor_blocks)),
-            ospf_instances=self._join_names(ospf_instance_blocks, "name"),
+            ospf_instances=self._join_values(ospf_instance_blocks, "name"),
             bridge_count=str(len(bridge_blocks)),
             bridge_port_count=str(len(bridge_port_blocks)),
-            bridge_names=self._join_names(bridge_blocks, "name"),
+            bridge_names=self._join_values(bridge_blocks, "name"),
             scheduler_count=str(len(scheduler_blocks)),
-            scheduler_names=self._join_names(scheduler_blocks, "name"),
+            scheduler_names=self._join_values(scheduler_blocks, "name"),
             dhcp_server_count=str(len(dhcp_server_blocks)),
             dhcp_client_count=str(len(dhcp_client_blocks)),
             ssh_port_value=self._find_service_port(service_blocks, "ssh"),
@@ -214,26 +523,26 @@ class MikroTikCollector:
             firewall_filter_count=str(len(firewall_filter_blocks)),
             firewall_nat_count=str(len(firewall_nat_blocks)),
             route_count=str(len(route_blocks)),
-            default_route_count=str(
-                sum(
-                    1
-                    for item in route_blocks
-                    if str(
-                        item.get("dst_address")
-                        or item.get("dst-address")
-                        or item.get("dst")
-                        or ""
-                    ).strip() == "0.0.0.0/0"
-                )
-            ),
             vlan_count=str(len(vlan_blocks)),
-            vlan_names=self._join_names(vlan_blocks, "name"),
+            vlan_names=self._join_values(vlan_blocks, "name"),
             radius_count=str(len(radius_blocks)),
-            watchdog_enabled=str(watchdog.get("watchdog_timer", "") or watchdog.get("automatic_supout", "")),
+            watchdog_enabled=str(
+                watchdog.get("watchdog_timer", "")
+                or watchdog.get("automatic_supout", "")
+            ),
+            vlan_table=vlan_table,
+
+            # Новые расширенные поля.
+            **ospf_summary,
+            **bridge_summary,
+            **bridge_port_summary,
+            **route_summary,
+            **firewall_summary,
         )
 
         self.logger.debug(
-            "Router data collection finished ip=%s identity=%s version=%s board=%s arch=%s uplink=%s neighbor=%s",
+            "Router data collection finished ip=%s identity=%s version=%s board=%s arch=%s "
+            "uplink=%s neighbor=%s ospf_full=%s ospf_twoway=%s bridge_warning=%s",
             session.ip,
             result.identity,
             result.version,
@@ -241,6 +550,9 @@ class MikroTikCollector:
             result.architecture,
             result.uplink_interface,
             result.neighbor_identity,
+            getattr(result, "ospf_full_neighbors", ""),
+            getattr(result, "ospf_twoway_neighbors", ""),
+            getattr(result, "bridge_warning", ""),
         )
 
         return result

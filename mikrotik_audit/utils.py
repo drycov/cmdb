@@ -66,33 +66,56 @@ def parse_colon_output(output: str) -> Dict[str, str]:
     return data
 
 
-def parse_detail_blocks(output: str) -> List[Dict[str, str]]:
-    blocks: List[Dict[str, str]] = []
-    current: Dict[str, str] = {}
+def parse_detail_blocks(output: str) -> list[dict[str, str]]:
+    blocks: list[dict[str, str]] = []
+    current: dict[str, str] = {}
+
+    item_start = re.compile(r"^\s*(\d+)\s+([A-Z;\s]*)?(.*)$")
+    kv_pattern = re.compile(r'([\w\-]+)=("[^"]*"|\S+)')
+
+    def flush() -> None:
+        nonlocal current
+        if current:
+            blocks.append(current)
+            current = {}
 
     for raw_line in output.splitlines():
-        stripped = raw_line.strip()
+        line = raw_line.strip()
 
-        if not stripped:
-            if current:
-                blocks.append(current)
-                current = {}
+        if not line:
+            flush()
             continue
 
-        if stripped.startswith(("Flags:", "Columns:", "#")):
+        if line.startswith(("Flags:", "Columns:", "#")):
             continue
 
-        if ":" not in stripped:
+        start = item_start.match(raw_line)
+        if start and start.group(1):
+            rest = start.group(3).strip()
+
+            if "=" in rest:
+                flush()
+                current["index"] = start.group(1)
+
+                flags = (start.group(2) or "").strip()
+                if flags:
+                    current["flags"] = " ".join(flags.split())
+
+                for key, value in kv_pattern.findall(rest):
+                    current[normalize_key(key)] = value.strip('"')
+                continue
+
+        if "=" in line:
+            for key, value in kv_pattern.findall(line):
+                current[normalize_key(key)] = value.strip('"')
             continue
 
-        key, value = stripped.split(":", 1)
-        current[normalize_key(key)] = normalize_value(value)
+        if ":" in line:
+            key, value = line.split(":", 1)
+            current[normalize_key(key)] = normalize_value(value)
 
-    if current:
-        blocks.append(current)
-
+    flush()
     return blocks
-
 
 # =========================
 # VERSION

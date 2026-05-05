@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from typing import Any, ClassVar, List
 
 from constants.auth_methods import AuthMethod
@@ -48,9 +48,23 @@ class AuditResult:
         "ospf_instance_count",
         "ospf_neighbor_count",
         "ospf_instances",
+        "ospf_full_neighbors",
+"ospf_twoway_neighbors",
+"ospf_other_neighbors",
+"ospf_unstable_neighbors",
+"ospf_dr",
+"ospf_bdr",
         "bridge_count",
         "bridge_port_count",
+        "bridge_hw_offload_ports",
+"bridge_restricted_role_ports",
+"bridge_access_ports",
+"bridge_trunk_like_ports",
         "bridge_names",
+        "bridge_protocol_modes",
+"bridge_vlan_filtering",
+"bridge_igmp_snooping",
+"bridge_warning",
         "scheduler_count",
         "scheduler_names",
         "dhcp_server_count",
@@ -59,8 +73,14 @@ class AuditResult:
         "winbox_port_value",
         "firewall_filter_count",
         "firewall_nat_count",
+        "firewall_filter_disabled_count",
+"firewall_filter_drop_count",
+"firewall_filter_accept_count",
         "route_count",
         "default_route_count",
+        "disabled_route_count",
+"dynamic_route_count",
+"static_route_count",
         "vlan_count",
         "vlan_names",
         "radius_count",
@@ -170,6 +190,38 @@ class AuditResult:
     status: str = ""
     inventory_status: str = ""  # OK | HOSTNAME_MISMATCH | NOT_FOUND
     inventory_severity: str = ""  # INFO | WARNING | ERROR
+        
+        # --- OSPF extended ---
+    ospf_full_neighbors: str = ""
+    ospf_twoway_neighbors: str = ""
+    ospf_other_neighbors: str = ""
+    ospf_unstable_neighbors: str = ""
+    ospf_dr: str = ""
+    ospf_bdr: str = ""
+
+    # --- Bridge extended ---
+    bridge_protocol_modes: str = ""
+    bridge_vlan_filtering: str = ""
+    bridge_igmp_snooping: str = ""
+    bridge_warning: str = ""
+    
+    vlan_table: list[dict[str, Any]] = field(default_factory=list)
+
+    # --- Bridge ports ---
+    bridge_hw_offload_ports: str = ""
+    bridge_restricted_role_ports: str = ""
+    bridge_access_ports: str = ""
+    bridge_trunk_like_ports: str = ""
+
+    # --- Routes extended ---
+    disabled_route_count: str = ""
+    dynamic_route_count: str = ""
+    static_route_count: str = ""
+
+    # --- Firewall extended ---
+    firewall_filter_disabled_count: str = ""
+    firewall_filter_drop_count: str = ""
+    firewall_filter_accept_count: str = ""
     
     def apply_device_info(self, info: DeviceInfo) -> None:
         self.identity = info.identity
@@ -215,6 +267,36 @@ class AuditResult:
         self.vlan_names = info.vlan_names
         self.radius_count = info.radius_count
         self.watchdog_enabled = info.watchdog_enabled
+        # OSPF extended
+        self.ospf_full_neighbors = info.ospf_full_neighbors
+        self.ospf_twoway_neighbors = info.ospf_twoway_neighbors
+        self.ospf_other_neighbors = info.ospf_other_neighbors
+        self.ospf_unstable_neighbors = info.ospf_unstable_neighbors
+        self.ospf_dr = info.ospf_dr
+        self.ospf_bdr = info.ospf_bdr
+
+        # Bridge extended
+        self.bridge_protocol_modes = info.bridge_protocol_modes
+        self.bridge_vlan_filtering = info.bridge_vlan_filtering
+        self.bridge_igmp_snooping = info.bridge_igmp_snooping
+        self.bridge_warning = info.bridge_warning
+
+        # Bridge ports
+        self.bridge_hw_offload_ports = info.bridge_hw_offload_ports
+        self.bridge_restricted_role_ports = info.bridge_restricted_role_ports
+        self.bridge_access_ports = info.bridge_access_ports
+        self.bridge_trunk_like_ports = info.bridge_trunk_like_ports
+
+        # Routes extended
+        self.disabled_route_count = info.disabled_route_count
+        self.dynamic_route_count = info.dynamic_route_count
+        self.static_route_count = info.static_route_count
+
+        # Firewall extended
+        self.firewall_filter_disabled_count = info.firewall_filter_disabled_count
+        self.firewall_filter_drop_count = info.firewall_filter_drop_count
+        self.firewall_filter_accept_count = info.firewall_filter_accept_count
+        self.vlan_table = getattr(info, "vlan_table", [])
 
     def apply_firmware(self, fw: FirmwareResult) -> None:
         self.firmware_candidate = fw.firmware_candidate

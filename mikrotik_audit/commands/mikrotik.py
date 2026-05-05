@@ -36,6 +36,7 @@ class MikroTikCommands:
     BRIDGE_PORT_DETAIL = "/interface bridge port print detail"
     BRIDGE_DETAIL = "/interface bridge print detail"
     VLAN_DETAIL = "/interface vlan print detail"
+    BRIDGE_VLAN_DETAIL = "/interface bridge vlan print detail"
     IP_NEIGHBOR_DETAIL = "/ip neighbor print detail"
     ROUTING_OSPF_INSTANCE_DETAIL = "/routing ospf instance print detail"
     ROUTING_OSPF_NEIGHBOR_DETAIL = "/routing ospf neighbor print detail"
@@ -91,4 +92,68 @@ class MikroTikCommands:
         return (
             "/radius remove "
             f"[find where service={cls._quote(service)} and address={cls._quote(address)}]"
+        )
+
+    @classmethod
+    def radius_remove_duplicates_keep_first(cls, service: str, address: str) -> str:
+        service_quoted = cls._quote(service)
+        address_quoted = cls._quote(address)
+        return (
+            f':local ids [/radius find where service={service_quoted} and address={address_quoted}]; '
+            ':local keep ""; '
+            ':foreach id in=$ids do={ '
+            ':if ($keep = "") do={ :set keep $id } else={ /radius remove $id } '
+            '}'
+        )
+    # ------------------------------
+    # SCHEDULER
+    # ------------------------------
+
+    @classmethod
+    def scheduler_find_by_name(cls, name: str) -> str:
+        return f"/system scheduler print detail where name={cls._quote(name)}"
+
+    @classmethod
+    def scheduler_remove_by_name(cls, name: str) -> str:
+        return f"/system scheduler remove [find where name={cls._quote(name)}]"
+
+    @classmethod
+    def scheduler_set(
+        cls,
+        *,
+        name: str,
+        start_time: str,
+        interval: str,
+        on_event: str,
+        policy: str,
+        disabled: str = "no",
+    ) -> str:
+        return (
+            f"/system scheduler set [find where name={cls._quote(name)}] "
+            f"start-time={cls._quote(start_time)} "
+            f"interval={cls._quote(interval)} "
+            f"on-event={cls._quote(on_event)} "
+            f"policy={cls._quote(policy)} "
+            f"disabled={cls._quote(disabled)}"
+        )
+
+    @classmethod
+    def scheduler_add(
+        cls,
+        *,
+        name: str,
+        start_time: str,
+        interval: str,
+        on_event: str,
+        policy: str,
+        disabled: str = "no",
+    ) -> str:
+        return (
+            "/system scheduler add "
+            f"name={cls._quote(name)} "
+            f"start-time={cls._quote(start_time)} "
+            f"interval={cls._quote(interval)} "
+            f"on-event={cls._quote(on_event)} "
+            f"policy={cls._quote(policy)} "
+            f"disabled={cls._quote(disabled)}"
         )

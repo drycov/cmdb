@@ -99,3 +99,33 @@ class FirmwareManager:
                 result.firmware_error = FirmwareErrorCode.REBOOT_COMMAND_FAILED.value
 
         return result
+
+    def inspect_status(
+        self,
+        architecture: str,
+        current_version: str,
+    ) -> FirmwareResult:
+        result = FirmwareResult()
+        if architecture != "mmips":
+            result.firmware_error = FirmwareErrorCode.SKIP_NON_MMIPS.value
+            return result
+
+        fw = self.find_firmware_file(architecture)
+        if not fw:
+            result.firmware_error = FirmwareErrorCode.LOCAL_FIRMWARE_NOT_FOUND.value
+            return result
+
+        result.firmware_candidate = fw.name
+        result.firmware_target_version = extract_version_from_filename(fw.name, architecture)
+
+        skip_reason = self._should_skip_upload(
+            architecture=architecture,
+            current_version=current_version,
+            target_version=result.firmware_target_version,
+        )
+        if skip_reason is not None:
+            result.firmware_error = skip_reason
+            return result
+
+        result.firmware_upload_needed = True
+        return result

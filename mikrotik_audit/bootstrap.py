@@ -5,7 +5,7 @@ import logging
 
 from config import AppConfig
 from domain.auditor import DeviceAuditor
-from domain.exporter import ExcelExporter
+from domain.phpipam_registry_async import AsyncPHPIPAMRegistryService
 from domain.targets import TargetProvider
 from logging_setup import setup_logging
 from models import Credentials
@@ -16,10 +16,13 @@ from services.firmware import FirmwareManager
 from services.radius import RadiusRemediator
 from services.routeros_script_generator import RouterOSScriptGenerator
 from services.ssh import SSHService
-
-from domain.phpipam_registry_async import AsyncPHPIPAMRegistryService
 from services.phpipam_async import AsyncPHPIPAMClient
-from services.google_sheets import GoogleSheetsExporter
+
+from report.pipeline import ReportPipeline
+from report.writers.excel import ExcelWriter
+from report.writers.json import JsonWriter
+from report.writers.gsheet import GSheetWriter
+
 
 @dataclass(slots=True)
 class AuditDependencies:
@@ -36,42 +39,7 @@ def _build_credentials(config: AppConfig) -> tuple[Credentials, Credentials]:
     )
 
 
-def _build_google_exporter(
-    config: AppConfig,
-    logger: logging.Logger,
-) -> GoogleSheetsExporter | None:
-    google = getattr(config, "google", None)
-
-    if google is None or not google.enabled:
-        return None
-
-    if not google.credentials_file:
-        logger.warning("Google exporter disabled: no credentials file")
-        return None
-
-    if not google.spreadsheet:
-        logger.warning("Google exporter disabled: no spreadsheet name")
-        return None
-
-    try:
-        return GoogleSheetsExporter(
-            credentials_path=google.credentials_file,
-            spreadsheet_name=google.spreadsheet,
-            worksheet_name=google.worksheet,
-            logger=logger,
-        )
-    except Exception as exc:
-        logger.exception(
-            "Google exporter initialization failed, fallback to Excel only: %s",
-            exc,
-        )
-        return None
-
-
-def _build_dependencies(
-    config: AppConfig,
-    logger: logging.Logger,
-) -> AuditDependencies:
+def _build_dependencies(config: AppConfig, logger: logging.Logger) -> AuditDependencies:
     return AuditDependencies(
         ssh=SSHService(config, logger),
         collector=MikroTikCollector(logger=logger),
@@ -96,6 +64,47 @@ def _build_phpipam_registry(
     )
 
 
+def _build_report_pipeline(
+    config: AppConfig,
+    logger: logging.Logger,
+) -> ReportPipeline:
+    writers = [
+        ExcelWriter(config.output_xlsx),
+        JsonWriter(
+            config.output_json
+            or str(config.output_xlsx).replace(".xlsx", ".ndjson")
+        ),
+    ]
+
+    google = getattr(config, "google", None)
+
+    if google and google.enabled and google.credentials_file and google.spreadsheet:
+        try:
+            import gspread
+            from google.oauth2.service_account import Credentials as GoogleCredentials
+
+            creds = GoogleCredentials.from_service_account_file(
+                google.credentials_file,
+                scopes=[
+                    "https://www.googleapis.com/auth/spreadsheets",
+                    "https://www.googleapis.com/auth/drive",
+                ],
+            )
+
+            client = gspread.authorize(creds)
+            spreadsheet = client.open(google.spreadsheet)
+
+            writers.append(
+                GSheetWriter(
+                    spreadsheet=spreadsheet,
+                    batch_size=500,
+                )
+            )
+
+        except Exception as exc:
+            logger.exception("Google Sheets writer disabled: %s", exc)
+
+    return ReportPipeline(writers=writers)
 def build_app() -> AuditRunner:
     config = AppConfig.from_env()
     logger = setup_logging(config)
@@ -119,8 +128,7 @@ def build_app() -> AuditRunner:
         logger=logger,
         target_provider=TargetProvider(config),
         auditor=auditor,
-        exporter=ExcelExporter(config),
+        report_pipeline=_build_report_pipeline(config, logger),
         phpipam_registry=_build_phpipam_registry(config, logger),
-        google_exporter=_build_google_exporter(config, logger),
         script_generator=RouterOSScriptGenerator(config=config),
     )
