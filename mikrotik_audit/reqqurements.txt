@@ -1,0 +1,12 @@
+paramiko
+click
+npyscreen
+dotenv
+pythonping
+openpyxl
+requests
+pyaml
+tqdm
+httpx
+gspread 
+google-auth
