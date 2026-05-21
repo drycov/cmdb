@@ -33,6 +33,13 @@ class PHPIPAMRegistryService:
     def _normalize_hostname(value: str | None) -> str:
         return normalize_hostname(value)
 
+    @staticmethod
+    def _has_successful_audit(result: AuditResult) -> bool:
+        return bool(
+            result.status.startswith(AuditStatus.SSH_OK.value)
+            or result.status.startswith(AuditStatus.FALLBACK_OK.value)
+        )
+
     # =========================
     # SYNC MODE (WRITE)
     # =========================
@@ -47,6 +54,12 @@ class PHPIPAMRegistryService:
         if existing:
             result.phpipam_exists = True
             result.phpipam_address_id = str(existing.get("id", ""))
+            result.phpipam_hostname = str(existing.get("hostname", ""))
+            result.phpipam_ip = result.ip
+            result.phpipam_description = str(existing.get("description", ""))
+            result.phpipam_note = str(existing.get("note", ""))
+            result.inventory_status = "OK" if self._normalize_hostname(result.identity) == self._normalize_hostname(result.phpipam_hostname) else "HOSTNAME_INCOMPLETE"
+            result.inventory_severity = "INFO"
 
             self.logger.debug(
                 "phpIPAM SYNC exists ip=%s address_id=%s",
@@ -133,9 +146,14 @@ class PHPIPAMRegistryService:
         hostname = self._normalize_hostname(result.identity)
 
         if not hostname:
-            self.logger.warning(
-                "phpIPAM MISS ip=%s reason=no_hostname",
+            result.inventory_status = "HOSTNAME_INCOMPLETE"
+            result.inventory_severity = (
+                "WARNING" if self._has_successful_audit(result) else "INFO"
+            )
+            self.logger.info(
+                "phpIPAM MISS ip=%s reason=no_hostname audit_status=%s",
                 result.ip,
+                result.status,
             )
             return result
 

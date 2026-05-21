@@ -1,0 +1,390 @@
+openapi: 3.1.0
+info:
+  title: MikroTik Source of Truth API
+  version: 0.1.0
+  summary: Snapshot-driven inventory, topology, risk, and remediation API.
+servers:
+  - url: http://localhost:8000
+paths:
+  /api/v1/snapshots:
+    post:
+      summary: Schedule a new collection snapshot
+      operationId: createSnapshot
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SnapshotCreateRequest"
+      responses:
+        "202":
+          description: Snapshot scheduled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SnapshotJobResponse"
+    get:
+      summary: List snapshots
+      operationId: listSnapshots
+      responses:
+        "200":
+          description: Snapshot list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/SnapshotSummary"
+  /api/v1/snapshots/{snapshot_id}:
+    get:
+      summary: Get snapshot detail
+      operationId: getSnapshot
+      parameters:
+        - in: path
+          name: snapshot_id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Snapshot detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SnapshotDetail"
+  /api/v1/devices:
+    get:
+      summary: List devices from the selected snapshot
+      operationId: listDevices
+      parameters:
+        - in: query
+          name: snapshot_id
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - in: query
+          name: role
+          schema:
+            type: string
+        - in: query
+          name: vendor
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Device list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Device"
+  /api/v1/devices/{device_id}:
+    get:
+      summary: Get detailed device view
+      operationId: getDevice
+      parameters:
+        - in: path
+          name: device_id
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - in: query
+          name: snapshot_id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Device detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeviceDetail"
+  /api/v1/topology/graph:
+    get:
+      summary: Get topology graph projection
+      operationId: getTopologyGraph
+      parameters:
+        - in: query
+          name: snapshot_id
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - in: query
+          name: layer
+          required: true
+          schema:
+            type: string
+            enum: [physical, l2, l3, vlan, wireless, risk]
+      responses:
+        "200":
+          description: Graph payload
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TopologyGraph"
+  /api/v1/risks:
+    get:
+      summary: List risks
+      operationId: listRisks
+      parameters:
+        - in: query
+          name: snapshot_id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Risk list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Risk"
+  /api/v1/remediations/plan:
+    post:
+      summary: Build a remediation plan for selected risks or entities
+      operationId: createRemediationPlan
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RemediationPlanRequest"
+      responses:
+        "200":
+          description: Generated remediation plan
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RemediationPlan"
+components:
+  schemas:
+    SnapshotCreateRequest:
+      type: object
+      required: [scope]
+      properties:
+        scope:
+          type: string
+          enum: [global, site, device_set]
+        site_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+        device_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+    SnapshotJobResponse:
+      type: object
+      required: [snapshot_id, status]
+      properties:
+        snapshot_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+    SnapshotSummary:
+      type: object
+      required: [snapshot_id, started_at, status]
+      properties:
+        snapshot_id:
+          type: string
+          format: uuid
+        started_at:
+          type: string
+          format: date-time
+        completed_at:
+          type: string
+          format: date-time
+        status:
+          type: string
+    SnapshotDetail:
+      allOf:
+        - $ref: "#/components/schemas/SnapshotSummary"
+        - type: object
+          properties:
+            device_count:
+              type: integer
+            risk_count:
+              type: integer
+            link_count:
+              type: integer
+    Device:
+      type: object
+      required: [device_id, identity]
+      properties:
+        device_id:
+          type: string
+          format: uuid
+        identity:
+          type: string
+        management_ip:
+          type: string
+        platform:
+          type: string
+        model:
+          type: string
+        board_name:
+          type: string
+        serial:
+          type: string
+        role:
+          type: string
+    DeviceDetail:
+      allOf:
+        - $ref: "#/components/schemas/Device"
+        - type: object
+          properties:
+            interfaces:
+              type: array
+              items:
+                $ref: "#/components/schemas/Interface"
+            bridges:
+              type: array
+              items:
+                $ref: "#/components/schemas/Bridge"
+            routes:
+              type: array
+              items:
+                $ref: "#/components/schemas/Route"
+            risks:
+              type: array
+              items:
+                $ref: "#/components/schemas/Risk"
+    Interface:
+      type: object
+      required: [interface_id, name]
+      properties:
+        interface_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        role:
+          type: string
+        admin_up:
+          type: boolean
+        oper_up:
+          type: boolean
+        pvid:
+          type: integer
+        tagged_vlans:
+          type: array
+          items:
+            type: integer
+        untagged_vlans:
+          type: array
+          items:
+            type: integer
+    Bridge:
+      type: object
+      required: [bridge_id, name]
+      properties:
+        bridge_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        protocol_mode:
+          type: string
+        vlan_filtering:
+          type: boolean
+    Route:
+      type: object
+      properties:
+        destination:
+          type: string
+        gateway:
+          type: string
+        protocol:
+          type: string
+    Risk:
+      type: object
+      required: [risk_id, rule_id, severity, title]
+      properties:
+        risk_id:
+          type: string
+          format: uuid
+        rule_id:
+          type: string
+        severity:
+          type: string
+          enum: [info, low, medium, high, critical]
+        confidence:
+          type: number
+        title:
+          type: string
+        summary:
+          type: string
+        impacted_entity_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+    TopologyGraph:
+      type: object
+      properties:
+        nodes:
+          type: array
+          items:
+            type: object
+        edges:
+          type: array
+          items:
+            type: object
+        overlays:
+          type: array
+          items:
+            type: object
+    RemediationPlanRequest:
+      type: object
+      required: [snapshot_id]
+      properties:
+        snapshot_id:
+          type: string
+          format: uuid
+        risk_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+        device_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+    RemediationPlan:
+      type: object
+      required: [plan_id, summary]
+      properties:
+        plan_id:
+          type: string
+          format: uuid
+        summary:
+          type: string
+        script:
+          type: string
+        validations:
+          type: array
+          items:
+            type: string

@@ -8,7 +8,12 @@ from config import AppConfig
 from constants.error_codes import FirmwareErrorCode
 from models import FirmwareResult
 from services.ssh import SSHSession
-from utils import extract_version_from_filename, normalize_version
+from utils import (
+    _version_tokens,
+    compare_versions,
+    extract_version_from_filename,
+    normalize_version,
+)
 
 
 class FirmwareManager:
@@ -21,17 +26,23 @@ class FirmwareManager:
         if not fw_dir.exists() or not fw_dir.is_dir():
             return None
 
+        candidates: list[tuple[Path, str]] = []
         patterns = [
             f"routeros-{architecture}-*.npk",
             f"*{architecture}*.npk",
         ]
 
         for pattern in patterns:
-            candidates = sorted(fw_dir.glob(pattern))
-            if candidates:
-                return candidates[-1]
+            for path in fw_dir.glob(pattern):
+                target_version = extract_version_from_filename(path.name, architecture)
+                if target_version:
+                    candidates.append((path, target_version))
 
-        return None
+        if not candidates:
+            return None
+
+        candidates.sort(key=lambda item: _version_tokens(item[1]))
+        return candidates[-1][0]
 
     def _should_skip_upload(
         self,
@@ -39,11 +50,9 @@ class FirmwareManager:
         current_version: str,
         target_version: str,
     ) -> str | None:
-        if architecture != "mmips":
-            return FirmwareErrorCode.SKIP_NON_MMIPS.value
-
         normalized_current = normalize_version(current_version)
         normalized_target = normalize_version(target_version)
+
         if (
             self.config.only_if_version_diff
             and normalized_current
@@ -51,6 +60,10 @@ class FirmwareManager:
             and normalized_current == normalized_target
         ):
             return FirmwareErrorCode.SAME_VERSION.value
+
+        if normalized_current and normalized_target:
+            if compare_versions(normalized_current, normalized_target) >= 0:
+                return FirmwareErrorCode.SKIP_TARGET_NOT_NEWER.value
 
         return None
 
@@ -61,9 +74,6 @@ class FirmwareManager:
         current_version: str,
     ) -> FirmwareResult:
         result = FirmwareResult()
-        if architecture != "mmips":
-            result.firmware_error = FirmwareErrorCode.SKIP_NON_MMIPS.value
-            return result
 
         fw = self.find_firmware_file(architecture)
         if not fw:
@@ -106,9 +116,6 @@ class FirmwareManager:
         current_version: str,
     ) -> FirmwareResult:
         result = FirmwareResult()
-        if architecture != "mmips":
-            result.firmware_error = FirmwareErrorCode.SKIP_NON_MMIPS.value
-            return result
 
         fw = self.find_firmware_file(architecture)
         if not fw:

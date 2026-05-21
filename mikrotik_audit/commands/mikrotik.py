@@ -14,10 +14,16 @@ class MikroTikCommands:
     SYSTEM_PACKAGE_UPDATE = "/system package update print"
     SYSTEM_REBOOT = "/system reboot"
     SYSTEM_SCHEDULER_DETAIL = "/system scheduler print detail"
+    SYSTEM_NTP_CLIENT = "/system ntp client print"
+    SYSTEM_NTP_CLIENT_DETAIL = "/system ntp client print detail"
+    SYSTEM_NTP_CLIENT_SERVERS = "/system ntp client servers print"
+    SYSTEM_NTP_CLIENT_SERVERS_DETAIL = "/system ntp client servers print detail"
 
     SYSTEM_CLOCK = "/system clock print"
     SYSTEM_ROUTERBOARD_UPGRADE = "/system routerboard upgrade"
     ROUTERBOARD_SETTINGS = "/system routerboard settings print"
+    EXPORT_TERSE = "/export terse"
+    EXPORT_COMPACT = "/export compact"
 
     WATCHDOG_PRINT = "/system watchdog print"
     WATCHDOG_ENABLE = "/system watchdog set enabled=yes"
@@ -60,6 +66,7 @@ class MikroTikCommands:
     IP_SERVICE_DETAIL = "/ip service print detail"
     FIREWALL_FILTER_DETAIL = "/ip firewall filter print detail"
     FIREWALL_NAT_DETAIL = "/ip firewall nat print detail"
+    IP_ADDRESS_DETAIL = "/ip address print detail"
     IP_ROUTE_DETAIL = "/ip route print detail"
 
     @staticmethod
@@ -123,12 +130,13 @@ class MikroTikCommands:
         *,
         name: str,
         start_time: str,
+        start_date: str = "",
         interval: str,
         on_event: str,
         policy: str,
         disabled: str = "no",
     ) -> str:
-        return (
+        command = (
             f"/system scheduler set [find where name={cls._quote(name)}] "
             f"start-time={cls._quote(start_time)} "
             f"interval={cls._quote(interval)} "
@@ -136,6 +144,9 @@ class MikroTikCommands:
             f"policy={cls._quote(policy)} "
             f"disabled={cls._quote(disabled)}"
         )
+        if start_date:
+            command += f" start-date={cls._quote(start_date)}"
+        return command
 
     @classmethod
     def scheduler_add(
@@ -143,12 +154,13 @@ class MikroTikCommands:
         *,
         name: str,
         start_time: str,
+        start_date: str = "",
         interval: str,
         on_event: str,
         policy: str,
         disabled: str = "no",
     ) -> str:
-        return (
+        command = (
             "/system scheduler add "
             f"name={cls._quote(name)} "
             f"start-time={cls._quote(start_time)} "
@@ -156,4 +168,36 @@ class MikroTikCommands:
             f"on-event={cls._quote(on_event)} "
             f"policy={cls._quote(policy)} "
             f"disabled={cls._quote(disabled)}"
+        )
+        if start_date:
+            command += f" start-date={cls._quote(start_date)}"
+        return command
+
+    @classmethod
+    def ntp_client_set_enabled(cls, enabled: str) -> str:
+        return f"/system ntp client set enabled={cls._quote(enabled)}"
+
+    @classmethod
+    def ntp_client_servers_reset(cls) -> str:
+        return ":foreach i in=[/system ntp client servers find] do={ /system ntp client servers remove $i }"
+
+    @classmethod
+    def ntp_client_server_add(cls, address: str) -> str:
+        return f"/system ntp client servers add address={cls._quote(address)}"
+
+    @classmethod
+    def watchdog_set(
+        cls,
+        *,
+        automatic_supout: str,
+        ping_start_after_boot: str,
+        ping_timeout: str,
+        watchdog_timer: str,
+    ) -> str:
+        return (
+            "/system watchdog set "
+            f"automatic-supout={cls._quote(automatic_supout)} "
+            f"ping-start-after-boot={cls._quote(ping_start_after_boot)} "
+            f"ping-timeout={cls._quote(ping_timeout)} "
+            f"watchdog-timer={cls._quote(watchdog_timer)}"
         )

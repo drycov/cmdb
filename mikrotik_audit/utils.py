@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ipaddress
+import itertools
 import re
 from typing import Any, Dict, List, Optional
 
@@ -44,7 +45,45 @@ def normalize_hostname(value: str | None) -> str:
     if value.endswith("_ukg"):
         value = value[:-4]
 
-    return value.strip()
+    value = value.strip()
+    value = re.sub(r"[_\-\s]+", "+", value)
+    value = re.sub(r"\++", "+", value).strip("+")
+    value = re.sub(r"\bovn0+(\d+)\b", r"ovn\1", value)
+    value = re.sub(r"(?<![a-z0-9])0+(\d+)\b", r"\1", value)
+    return value
+
+
+def hostname_tokens(value: str | None) -> list[str]:
+    normalized = normalize_hostname(value)
+    if not normalized:
+        return []
+
+    raw_tokens = [token for token in normalized.split("+") if token]
+    tokens: list[str] = []
+
+    for token in raw_tokens:
+        token = token.strip()
+        if not token:
+            continue
+
+        if re.fullmatch(r"\d+", token):
+            tokens.append(f"ovn{int(token)}")
+            continue
+
+        ovn_match = re.fullmatch(r"ovn0*(\d+)", token)
+        if ovn_match:
+            tokens.append(f"ovn{int(ovn_match.group(1))}")
+            continue
+
+        generic_match = re.fullmatch(r"([a-z]+)0*(\d+)", token)
+        if generic_match:
+            prefix, number = generic_match.groups()
+            tokens.append(f"{prefix}{int(number)}")
+            continue
+
+        tokens.append(token)
+
+    return tokens
 
 
 # =========================
@@ -122,6 +161,31 @@ def parse_detail_blocks(output: str) -> list[dict[str, str]]:
 # =========================
 def normalize_version(version: str) -> str:
     return " ".join(version.strip().split())
+
+
+def _version_tokens(version: str) -> list[tuple[int, object]]:
+    normalized = normalize_version(version)
+    tokens: list[tuple[int, object]] = []
+
+    for chunk in re.findall(r"\d+|[A-Za-z]+", normalized):
+        if chunk.isdigit():
+            tokens.append((0, int(chunk)))
+        else:
+            tokens.append((1, chunk.lower()))
+
+    return tokens
+
+
+def compare_versions(left: str, right: str) -> int:
+    left_tokens = _version_tokens(left)
+    right_tokens = _version_tokens(right)
+
+    for lhs, rhs in itertools.zip_longest(left_tokens, right_tokens, fillvalue=(0, 0)):
+        if lhs == rhs:
+            continue
+        return 1 if lhs > rhs else -1
+
+    return 0
 
 
 def extract_version_from_filename(filename: str, architecture: str) -> str:

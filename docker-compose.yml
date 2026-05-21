@@ -1,0 +1,13 @@
+services:
+  mikrotik-audit-cron:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mikrotik-audit-cron
+    restart: unless-stopped
+    environment:
+      TZ: Asia/Qyzylorda
+      CRON_SCHEDULE: "0 */6 * * *"
+      SERVICE_ACTION: audit
+    volumes:
+      - ./mikrotik_audit:/app/mikrotik_audit

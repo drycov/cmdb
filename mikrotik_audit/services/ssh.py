@@ -5,9 +5,27 @@ import socket
 from pathlib import Path
 from typing import Callable, TypeVar
 
-import paramiko
-from paramiko import AuthenticationException, SSHException
-from pythonping import ping
+try:
+    import paramiko
+    from paramiko import AuthenticationException, SSHException
+except ModuleNotFoundError:
+    paramiko = None
+
+    class AuthenticationException(Exception):
+        pass
+
+    class SSHException(Exception):
+        pass
+
+try:
+    from ping3 import ping as ping3_ping
+except ModuleNotFoundError:
+    ping3_ping = None
+
+try:
+    from pythonping import ping as pythonping_ping
+except ModuleNotFoundError:
+    pythonping_ping = None
 
 from commands.mikrotik import MikroTikCommands
 from config import AppConfig
@@ -50,7 +68,7 @@ class SSHSession:
         exit_status = stdout.channel.recv_exit_status()
         return output, err, exit_status
 
-    def exec(self, command: str) -> str | None:
+    def exec(self, command: str, *, warn_on_error: bool = True) -> str | None:
         stdin = stdout = stderr = None
 
         try:
@@ -70,7 +88,8 @@ class SSHSession:
             output, err, exit_status = self._read_command_output(stdout, stderr)
 
             if exit_status != 0:
-                self.logger.warning(
+                log_method = self.logger.warning if warn_on_error else self.logger.debug
+                log_method(
                     "SSH session command failed ip=%s user=%s cmd=%s exit_status=%s stderr=%s",
                     self.ip,
                     self.credentials.username,
@@ -113,8 +132,8 @@ class SSHSession:
             self._safe_close(stdout)
             self._safe_close(stderr)
 
-    def exec_ok(self, command: str) -> bool:
-        return self.exec(command) is not None
+    def exec_ok(self, command: str, *, warn_on_error: bool = True) -> bool:
+        return self.exec(command, warn_on_error=warn_on_error) is not None
 
     def upload_file_sftp(
         self,
@@ -200,11 +219,42 @@ class SSHService:
     def __init__(self, config: AppConfig, logger: logging.Logger) -> None:
         self.config = config
         self.logger = logger
+        self._ensure_dependencies()
+
+    @staticmethod
+    def _ensure_dependencies() -> None:
+        missing: list[str] = []
+        if paramiko is None:
+            missing.append("paramiko")
+        if ping3_ping is None and pythonping_ping is None:
+            missing.append("ping3 or pythonping")
+
+        if missing:
+            raise RuntimeError(
+                "Missing required runtime dependencies: "
+                + ", ".join(missing)
+                + ". Install the dependencies from reqqurements.txt."
+            )
 
     def ping_host(self, ip: str) -> bool:
         try:
-            result = ping(ip, count=1, timeout=1)
-            return result.success()
+            if ping3_ping is not None:
+                for _ in range(max(1, self.config.ping_count)):
+                    result = ping3_ping(ip, timeout=self.config.ping_timeout)
+                    if result is not None:
+                        return True
+                return False
+
+            if pythonping_ping is not None:
+                result = pythonping_ping(
+                    ip,
+                    count=self.config.ping_count,
+                    timeout=self.config.ping_timeout,
+                )
+                return result.success()
+
+            self.logger.debug("No ping implementation available for ip=%s", ip)
+            return False
         except Exception as exc:
             self.logger.debug("Ping exception ip=%s error=%s", ip, exc)
             return False
@@ -234,7 +284,7 @@ class SSHService:
             password=credentials.password,
             timeout=self.config.timeout,
             banner_timeout=self.config.banner_timeout,
-            auth_timeout=self.config.timeout,
+            auth_timeout=self.config.auth_timeout,
             look_for_keys=False,
             allow_agent=False,
         )
@@ -247,6 +297,10 @@ class SSHService:
                 ip,
                 credentials.username,
             )
+
+            if not self.ping_host(ip):
+                self.logger.debug("SSH session ping failed before connect ip=%s", ip)
+                return None
 
             client = self._create_client(ip, credentials)
 
@@ -261,7 +315,7 @@ class SSHService:
                 credentials=credentials,
                 client=client,
                 logger=self.logger,
-                command_timeout=self.config.timeout + 5,
+                command_timeout=self.config.command_timeout,
             )
 
         except AuthenticationException as exc:
@@ -306,16 +360,30 @@ class SSHService:
             return action(session)
 
     # backward-compatible wrappers
-    def exec(self, ip: str, credentials: Credentials, command: str) -> str | None:
+    def exec(
+        self,
+        ip: str,
+        credentials: Credentials,
+        command: str,
+        *,
+        warn_on_error: bool = True,
+    ) -> str | None:
         return self._with_session(
             ip,
             credentials,
-            lambda session: session.exec(command),
+            lambda session: session.exec(command, warn_on_error=warn_on_error),
             None,
         )
 
-    def exec_ok(self, ip: str, credentials: Credentials, command: str) -> bool:
-        return self.exec(ip, credentials, command) is not None
+    def exec_ok(
+        self,
+        ip: str,
+        credentials: Credentials,
+        command: str,
+        *,
+        warn_on_error: bool = True,
+    ) -> bool:
+        return self.exec(ip, credentials, command, warn_on_error=warn_on_error) is not None
 
     def upload_file_sftp(
         self,

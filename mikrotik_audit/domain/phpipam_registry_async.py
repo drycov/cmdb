@@ -5,7 +5,7 @@ import logging
 from config import PHPIPAMConfig
 from models import AuditResult
 from services.phpipam_async import AsyncPHPIPAMClient
-from utils import normalize_hostname
+from utils import hostname_tokens, normalize_hostname
 
 
 class AsyncPHPIPAMRegistryService:
@@ -24,6 +24,13 @@ class AsyncPHPIPAMRegistryService:
             return
 
         await self.client.preload_addresses()
+
+    @staticmethod
+    def _has_successful_audit(result: AuditResult) -> bool:
+        return bool(
+            result.status.startswith("SSH_OK")
+            or result.status.startswith("FALLBACK_OK")
+        )
 
     # =========================
     # MAIN LOGIC
@@ -50,34 +57,62 @@ class AsyncPHPIPAMRegistryService:
             device_hostname = self._normalize_hostname(result.identity)
             ipam_hostname = self._normalize_hostname(result.phpipam_hostname)
 
-            if not device_hostname or not ipam_hostname:
-                result.inventory_status = "HOSTNAME_INCOMPLETE"
-                result.inventory_severity = "WARNING"
-            elif device_hostname == ipam_hostname:
-                result.inventory_status = "OK"
-                result.inventory_severity = "INFO"
-            elif device_hostname in ipam_hostname or ipam_hostname in device_hostname:
-                result.inventory_status = "HOSTNAME_PARTIAL_MATCH"
-                result.inventory_severity = "WARNING"
-            else:
-                result.inventory_status = "HOSTNAME_MISMATCH"
-                result.inventory_severity = "WARNING"
-
-            self.logger.warning(
-                "phpIPAM IP match hostname_check ip=%s device_hostname=%s ipam_hostname=%s status=%s",
-                result.ip,
+            result.inventory_status = self._hostname_match_status(
                 device_hostname,
                 ipam_hostname,
-                result.inventory_status,
             )
+            result.inventory_severity = (
+                "INFO"
+                if result.inventory_status in {"OK", "HOSTNAME_INCOMPLETE"}
+                else "WARNING"
+            )
+
+            if result.inventory_status == "HOSTNAME_INCOMPLETE":
+                self.logger.info(
+                    "phpIPAM IP match with incomplete hostname ip=%s device_hostname=%s ipam_hostname=%s audit_status=%s",
+                    result.ip,
+                    device_hostname,
+                    ipam_hostname,
+                    result.status,
+                )
+            elif result.inventory_status == "OK":
+                self.logger.debug(
+                    "phpIPAM IP match hostname_check ip=%s device_hostname=%s ipam_hostname=%s status=%s",
+                    result.ip,
+                    device_hostname,
+                    ipam_hostname,
+                    result.inventory_status,
+                )
+            elif result.inventory_status == "HOSTNAME_PARTIAL_MATCH":
+                self.logger.info(
+                    "phpIPAM IP match hostname_check ip=%s device_hostname=%s ipam_hostname=%s status=%s",
+                    result.ip,
+                    device_hostname,
+                    ipam_hostname,
+                    result.inventory_status,
+                )
+            else:
+                self.logger.warning(
+                    "phpIPAM IP match hostname_check ip=%s device_hostname=%s ipam_hostname=%s status=%s",
+                    result.ip,
+                    device_hostname,
+                    ipam_hostname,
+                    result.inventory_status,
+                )
 
             return result
 
         hostname = self._normalize_hostname(result.identity)
         if not hostname:
             result.inventory_status = "HOSTNAME_INCOMPLETE"
-            result.inventory_severity = "WARNING"
-            self.logger.warning("phpIPAM MISS ip=%s reason=no_device_hostname", result.ip)
+            result.inventory_severity = (
+                "WARNING" if self._has_successful_audit(result) else "INFO"
+            )
+            self.logger.info(
+                "phpIPAM MISS ip=%s reason=no_device_hostname audit_status=%s",
+                result.ip,
+                result.status,
+            )
             return result
 
         matches = self.client.get_cached_by_hostname(hostname)
@@ -134,7 +169,7 @@ class AsyncPHPIPAMRegistryService:
             result.inventory_status = "HOSTNAME_PARTIAL_MATCH"
             result.inventory_severity = "WARNING"
 
-            self.logger.warning(
+            self.logger.info(
                 "phpIPAM PARTIAL HOSTNAME MATCH device_ip=%s device_hostname=%s ipam_hostname=%s ipam_ip=%s",
                 result.ip,
                 hostname,
@@ -154,6 +189,28 @@ class AsyncPHPIPAMRegistryService:
     @staticmethod
     def _normalize_hostname(value: str | None) -> str:
         return normalize_hostname(value)
+
+    @staticmethod
+    def _hostname_match_status(device_hostname: str, ipam_hostname: str) -> str:
+        if not device_hostname or not ipam_hostname:
+            return "HOSTNAME_INCOMPLETE"
+
+        if device_hostname == ipam_hostname:
+            return "OK"
+
+        device_tokens = set(hostname_tokens(device_hostname))
+        ipam_tokens = set(hostname_tokens(ipam_hostname))
+
+        if device_tokens and ipam_tokens:
+            if device_tokens == ipam_tokens:
+                return "OK"
+            if device_tokens.issubset(ipam_tokens) or ipam_tokens.issubset(device_tokens):
+                return "HOSTNAME_PARTIAL_MATCH"
+
+        if device_hostname in ipam_hostname or ipam_hostname in device_hostname:
+            return "HOSTNAME_PARTIAL_MATCH"
+
+        return "HOSTNAME_MISMATCH"
 
     def _find_equivalent_hostname_match(self, hostname: str) -> dict | None:
         hostname = self._normalize_hostname(hostname)

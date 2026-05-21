@@ -1,0 +1,2 @@
+# Preserve LF line endings for RouterOS configuration scripts
+*.rsc text eol=lf

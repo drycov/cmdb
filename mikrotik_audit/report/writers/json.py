@@ -1,6 +1,7 @@
 from __future__ import annotations
-from typing import Any
+
 import json
+from typing import Any
 
 
 class JsonWriter:
@@ -9,7 +10,7 @@ class JsonWriter:
         self.f = None
 
     def open(self) -> None:
-        self.f = open(self.path, "w", encoding="utf-8")
+        self.f = open(self.path, "a", encoding="utf-8")
 
     def begin_section(self, name: str, headers: list[str]) -> None:
         self.current_section = name

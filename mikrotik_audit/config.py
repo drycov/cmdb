@@ -6,8 +6,16 @@ from hashlib import sha1
 from pathlib import Path
 from typing import Any, Iterator
 
-import yaml
-from dotenv import load_dotenv
+try:
+    import yaml
+except ModuleNotFoundError:
+    yaml = None
+
+try:
+    from dotenv import load_dotenv
+except ModuleNotFoundError:
+    def load_dotenv() -> bool:
+        return False
 
 load_dotenv()
 
@@ -70,6 +78,12 @@ def load_yaml_file(path: str | Path) -> dict[str, Any]:
     file_path = Path(path).expanduser()
     if not file_path.exists():
         return {}
+
+    if yaml is None:
+        raise RuntimeError(
+            "PyYAML is required to read YAML configuration files. "
+            "Install the dependencies from reqqurements.txt."
+        )
 
     try:
         with file_path.open("r", encoding="utf-8") as fh:
@@ -364,6 +378,24 @@ class FirmwareConfig:
 
 
 @dataclass(slots=True, frozen=True)
+class GatewayAuthConfig:
+    credentials: CredentialConfig = field(default_factory=CredentialConfig)
+
+    @classmethod
+    def from_sources(cls, secrets: dict[str, Any]) -> GatewayAuthConfig:
+        gateway_data = as_dict(secrets.get("us_gateway"))
+        yaml_cred = CredentialConfig.from_mapping(gateway_data, name="us_gateway")
+        env_cred = CredentialConfig.from_env(
+            username_key="GATEWAY_USERNAME",
+            password_key="GATEWAY_PASSWORD",
+            username_default="",
+            password_default="",
+            name="us_gateway",
+        )
+        return cls(credentials=env_cred if env_cred.is_valid else yaml_cred)
+
+
+@dataclass(slots=True, frozen=True)
 class RadiusConfig:
     address: str = ""
     secret: str = ""
@@ -447,6 +479,19 @@ class SchedulerRule:
     def is_staggered(self) -> bool:
         return self.start_time_mode == "staggered"
 
+    def resolve_seed(self, *, ip: str, identity: str = "") -> str:
+        seed_mode = self.seed_by or "ip"
+
+        if seed_mode == "identity":
+            return identity or ip
+        if seed_mode in {"identity_name", "identity-and-name"}:
+            base = identity or ip
+            return f"{base}:{self.name}"
+        if seed_mode in {"ip_name", "ip-and-name"}:
+            return f"{ip}:{self.name}"
+
+        return ip
+
     def resolve_start_time(self, seed: str) -> str:
         if not self.is_staggered:
             return self.start_time
@@ -463,6 +508,11 @@ class SchedulerRule:
         slot_index = int(digest[:8], 16) % slot_count
 
         return format_hms(start + slot_index * slot_seconds)
+
+    def resolve_device_start_time(self, *, ip: str, identity: str = "") -> str:
+        return self.resolve_start_time(
+            self.resolve_seed(ip=ip, identity=identity),
+        )
 
 
 @dataclass(slots=True, frozen=True)
@@ -501,6 +551,258 @@ class WatchdogConfig:
         )
 
 
+@dataclass(slots=True, frozen=True)
+class RuntimeConfig:
+    workers: int = 100
+    ssh_port: int = 22
+    connect_timeout: int = 2
+    auth_timeout: int = 2
+    banner_timeout: int = 5
+    command_timeout: int = 7
+    ping_timeout: int = 1
+    ping_count: int = 1
+    max_targets: int = 0
+
+    @classmethod
+    def from_sources(cls, inventory_data: dict[str, Any]) -> RuntimeConfig:
+        runtime = as_dict(as_dict(inventory_data.get("settings")).get("runtime"))
+        connect_timeout = env_int(
+            "MIKROTIK_TIMEOUT",
+            int(runtime.get("connect_timeout", 2) or 2),
+        )
+
+        return cls(
+            workers=env_int("MIKROTIK_WORKERS", int(runtime.get("workers", 100) or 100)),
+            ssh_port=env_int("MIKROTIK_SSH_PORT", int(runtime.get("ssh_port", 22) or 22)),
+            connect_timeout=connect_timeout,
+            auth_timeout=env_int(
+                "MIKROTIK_AUTH_TIMEOUT",
+                int(runtime.get("auth_timeout", connect_timeout) or connect_timeout),
+            ),
+            banner_timeout=env_int(
+                "MIKROTIK_BANNER_TIMEOUT",
+                int(runtime.get("banner_timeout", max(connect_timeout, 5)) or max(connect_timeout, 5)),
+            ),
+            command_timeout=env_int(
+                "MIKROTIK_COMMAND_TIMEOUT",
+                int(runtime.get("command_timeout", connect_timeout + 5) or (connect_timeout + 5)),
+            ),
+            ping_timeout=env_int(
+                "MIKROTIK_PING_TIMEOUT",
+                int(runtime.get("ping_timeout", 1) or 1),
+            ),
+            ping_count=env_int(
+                "MIKROTIK_PING_COUNT",
+                int(runtime.get("ping_count", 1) or 1),
+            ),
+            max_targets=env_int(
+                "MAX_TARGETS",
+                int(runtime.get("max_targets", 0) or 0),
+            ),
+        )
+
+
+@dataclass(slots=True, frozen=True)
+class ServiceConfig:
+    enabled: bool = False
+    action: str = "audit"
+    interval_seconds: int = 3600
+    progress: bool = False
+
+    @classmethod
+    def from_inventory(cls, inventory_data: dict[str, Any]) -> ServiceConfig:
+        service = as_dict(as_dict(inventory_data.get("settings")).get("service"))
+        return cls(
+            enabled=env_bool("SERVICE_ENABLED", as_bool(service.get("enabled"), False)),
+            action=env_str(
+                "SERVICE_ACTION",
+                str(service.get("action", "audit") or "audit"),
+            ).strip().lower(),
+            interval_seconds=env_int(
+                "SERVICE_INTERVAL_SECONDS",
+                int(service.get("interval_seconds", 3600) or 3600),
+            ),
+            progress=env_bool("SERVICE_PROGRESS", as_bool(service.get("progress"), False)),
+        )
+
+
+@dataclass(slots=True, frozen=True)
+class AuditConfig:
+    read_only: bool = True
+    preload_phpipam_cache: bool = True
+    export_single_audit: bool = True
+    fail_fast: bool = False
+
+    @classmethod
+    def from_inventory(cls, inventory_data: dict[str, Any]) -> AuditConfig:
+        audit = as_dict(as_dict(inventory_data.get("settings")).get("audit"))
+        return cls(
+            read_only=env_bool("AUDIT_READ_ONLY", as_bool(audit.get("read_only"), True)),
+            preload_phpipam_cache=env_bool(
+                "PRELOAD_PHPIPAM_CACHE",
+                as_bool(audit.get("preload_phpipam_cache"), True),
+            ),
+            export_single_audit=env_bool(
+                "EXPORT_SINGLE_AUDIT",
+                as_bool(audit.get("export_single_audit"), True),
+            ),
+            fail_fast=env_bool("AUDIT_FAIL_FAST", as_bool(audit.get("fail_fast"), False)),
+        )
+
+
+@dataclass(slots=True, frozen=True)
+class ComplianceConfig:
+    radius: bool = True
+    ntp: bool = True
+    scheduler: bool = True
+    watchdog: bool = True
+    phpipam: bool = True
+
+    @classmethod
+    def from_inventory(cls, inventory_data: dict[str, Any]) -> ComplianceConfig:
+        compliance = as_dict(as_dict(inventory_data.get("settings")).get("compliance"))
+        return cls(
+            radius=env_bool("COMPLIANCE_RADIUS", as_bool(compliance.get("radius"), True)),
+            ntp=env_bool("COMPLIANCE_NTP", as_bool(compliance.get("ntp"), True)),
+            scheduler=env_bool("COMPLIANCE_SCHEDULER", as_bool(compliance.get("scheduler"), True)),
+            watchdog=env_bool("COMPLIANCE_WATCHDOG", as_bool(compliance.get("watchdog"), True)),
+            phpipam=env_bool("COMPLIANCE_PHPIPAM", as_bool(compliance.get("phpipam"), True)),
+        )
+
+
+@dataclass(slots=True, frozen=True)
+class RemediationConfig:
+    enabled: bool = True
+    allow_apply: bool = False
+    allow_generate_script: bool = True
+    allowed_domains: list[str] = field(default_factory=lambda: ["ntp", "watchdog", "scheduler"])
+    output_dir: str = "logs/remediation"
+    git_enabled: bool = False
+    git_repo_dir: str = "logs/script-history"
+    git_author_name: str = "mikrotik-audit"
+    git_author_email: str = "mikrotik-audit@local"
+
+    @classmethod
+    def from_inventory(cls, inventory_data: dict[str, Any]) -> RemediationConfig:
+        remediation = as_dict(as_dict(inventory_data.get("settings")).get("remediation"))
+        allowed_domains = [
+            str(item).strip().lower()
+            for item in as_list(remediation.get("allowed_domains"))
+            if str(item).strip()
+        ]
+        if not allowed_domains:
+            allowed_domains = ["ntp", "watchdog", "scheduler"]
+
+        return cls(
+            enabled=env_bool("REMEDIATION_ENABLED", as_bool(remediation.get("enabled"), True)),
+            allow_apply=env_bool("REMEDIATION_ALLOW_APPLY", as_bool(remediation.get("allow_apply"), False)),
+            allow_generate_script=env_bool(
+                "REMEDIATION_ALLOW_GENERATE_SCRIPT",
+                as_bool(remediation.get("allow_generate_script"), True),
+            ),
+            allowed_domains=allowed_domains,
+            output_dir=env_str(
+                "REMEDIATION_OUTPUT_DIR",
+                str(remediation.get("output_dir", "logs/remediation") or "logs/remediation"),
+            ),
+            git_enabled=env_bool(
+                "REMEDIATION_GIT_ENABLED",
+                as_bool(remediation.get("git_enabled"), False),
+            ),
+            git_repo_dir=env_str(
+                "REMEDIATION_GIT_REPO_DIR",
+                str(remediation.get("git_repo_dir", "logs/script-history") or "logs/script-history"),
+            ),
+            git_author_name=env_str(
+                "REMEDIATION_GIT_AUTHOR_NAME",
+                str(remediation.get("git_author_name", "mikrotik-audit") or "mikrotik-audit"),
+            ),
+            git_author_email=env_str(
+                "REMEDIATION_GIT_AUTHOR_EMAIL",
+                str(remediation.get("git_author_email", "mikrotik-audit@local") or "mikrotik-audit@local"),
+            ),
+        )
+
+
+@dataclass(slots=True, frozen=True)
+class BackupConfig:
+    enabled: bool = True
+    output_dir: str = "logs/config-backups"
+    git_enabled: bool = True
+    git_repo_dir: str = "logs/config-backup-history"
+    git_author_name: str = "mikrotik-audit"
+    git_author_email: str = "mikrotik-audit@local"
+    export_command: str = "/export terse"
+    filename_mode: str = "identity-ip"
+
+    @classmethod
+    def from_inventory(cls, inventory_data: dict[str, Any]) -> BackupConfig:
+        backup = as_dict(as_dict(inventory_data.get("settings")).get("backup"))
+        return cls(
+            enabled=env_bool("BACKUP_ENABLED", as_bool(backup.get("enabled"), True)),
+            output_dir=env_str(
+                "BACKUP_OUTPUT_DIR",
+                str(backup.get("output_dir", "logs/config-backups") or "logs/config-backups"),
+            ),
+            git_enabled=env_bool(
+                "BACKUP_GIT_ENABLED",
+                as_bool(backup.get("git_enabled"), True),
+            ),
+            git_repo_dir=env_str(
+                "BACKUP_GIT_REPO_DIR",
+                str(backup.get("git_repo_dir", "logs/config-backup-history") or "logs/config-backup-history"),
+            ),
+            git_author_name=env_str(
+                "BACKUP_GIT_AUTHOR_NAME",
+                str(backup.get("git_author_name", "mikrotik-audit") or "mikrotik-audit"),
+            ),
+            git_author_email=env_str(
+                "BACKUP_GIT_AUTHOR_EMAIL",
+                str(backup.get("git_author_email", "mikrotik-audit@local") or "mikrotik-audit@local"),
+            ),
+            export_command=env_str(
+                "BACKUP_EXPORT_COMMAND",
+                str(backup.get("export_command", "/export terse") or "/export terse"),
+            ),
+            filename_mode=env_str(
+                "BACKUP_FILENAME_MODE",
+                str(backup.get("filename_mode", "identity-ip") or "identity-ip"),
+            ).strip().lower(),
+        )
+
+
+@dataclass(slots=True, frozen=True)
+class ReportConfig:
+    output_xlsx: str = "mikrotik_inventory.xlsx"
+    output_json: str | None = None
+    write_excel: bool = True
+    write_ndjson: bool = True
+    write_google_sheets: bool = True
+
+    @classmethod
+    def from_inventory(cls, inventory_data: dict[str, Any]) -> ReportConfig:
+        report = as_dict(as_dict(inventory_data.get("settings")).get("report"))
+        output_xlsx = env_str(
+            "OUTPUT_XLSX",
+            str(report.get("output_xlsx", "mikrotik_inventory.xlsx") or "mikrotik_inventory.xlsx"),
+        )
+        output_json = env_optional_path("OUTPUT_JSON")
+        if output_json is None:
+            configured_output_json = str(report.get("output_json", "") or "").strip()
+            output_json = configured_output_json or None
+
+        return cls(
+            output_xlsx=output_xlsx,
+            output_json=output_json,
+            write_excel=env_bool("WRITE_EXCEL_REPORT", as_bool(report.get("write_excel"), True)),
+            write_ndjson=env_bool("WRITE_NDJSON_REPORT", as_bool(report.get("write_ndjson"), True)),
+            write_google_sheets=env_bool(
+                "WRITE_GOOGLE_SHEETS_REPORT",
+                as_bool(report.get("write_google_sheets"), True),
+            ),
+        )
+
+
 # =============================================================================
 # MAIN APP CONFIG
 # =============================================================================
@@ -519,16 +821,18 @@ class AppConfig:
     log_backup_count: int
     log_inventory_details: bool
 
+    runtime: RuntimeConfig
+
     # MikroTik connection
     mikrotik_auth: MikroTikAuthConfig
-    ssh_port: int
-    timeout: int
-    banner_timeout: int
-    workers: int
 
-    # Output
-    output_xlsx: str
-    output_json: str | None
+    # Behavior and output
+    service: ServiceConfig
+    audit: AuditConfig
+    compliance: ComplianceConfig
+    remediation: RemediationConfig
+    backup: BackupConfig
+    report: ReportConfig
 
     # Runtime files
     inventory_file: str
@@ -540,6 +844,7 @@ class AppConfig:
 
     # Firmware
     firmware: FirmwareConfig
+    gateway_auth: GatewayAuthConfig
 
     # Test mode
     test_mode: bool
@@ -594,6 +899,42 @@ class AppConfig:
         return self.mikrotik_auth.credentials
 
     @property
+    def ssh_port(self) -> int:
+        return self.runtime.ssh_port
+
+    @property
+    def timeout(self) -> int:
+        return self.runtime.connect_timeout
+
+    @property
+    def banner_timeout(self) -> int:
+        return self.runtime.banner_timeout
+
+    @property
+    def command_timeout(self) -> int:
+        return self.runtime.command_timeout
+
+    @property
+    def auth_timeout(self) -> int:
+        return self.runtime.auth_timeout
+
+    @property
+    def ping_timeout(self) -> int:
+        return self.runtime.ping_timeout
+
+    @property
+    def ping_count(self) -> int:
+        return self.runtime.ping_count
+
+    @property
+    def workers(self) -> int:
+        return self.runtime.workers
+
+    @property
+    def max_targets(self) -> int:
+        return self.runtime.max_targets
+
+    @property
     def firmware_username(self) -> str:
         return self.firmware.credentials.username
 
@@ -604,6 +945,14 @@ class AppConfig:
     @property
     def firmware_dir(self) -> str:
         return self.firmware.directory
+
+    @property
+    def gateway_username(self) -> str:
+        return self.gateway_auth.credentials.username
+
+    @property
+    def gateway_password(self) -> str:
+        return self.gateway_auth.credentials.password
 
     @property
     def auto_upload_mmips(self) -> bool:
@@ -629,6 +978,26 @@ class AppConfig:
     def radius_service(self) -> str:
         return self.radius.service
 
+    @property
+    def output_xlsx(self) -> str:
+        return self.report.output_xlsx
+
+    @property
+    def output_json(self) -> str | None:
+        return self.report.output_json
+
+    @property
+    def preload_phpipam_cache(self) -> bool:
+        return self.audit.preload_phpipam_cache
+
+    @property
+    def export_single_audit(self) -> bool:
+        return self.audit.export_single_audit
+
+    def remediation_domain_allowed(self, domain: str) -> bool:
+        normalized = (domain or "").strip().lower()
+        return normalized in {item.lower() for item in self.remediation.allowed_domains}
+
     # -------------------------------------------------------------------------
     # Factory
     # -------------------------------------------------------------------------
@@ -647,6 +1016,13 @@ class AppConfig:
 
         mikrotik_auth = MikroTikAuthConfig.from_sources(secrets)
         first_fallback = mikrotik_auth.fallback[0] if mikrotik_auth.fallback else None
+        runtime = RuntimeConfig.from_sources(inventory_data)
+        audit = AuditConfig.from_inventory(inventory_data)
+        compliance = ComplianceConfig.from_inventory(inventory_data)
+        remediation = RemediationConfig.from_inventory(inventory_data)
+        backup = BackupConfig.from_inventory(inventory_data)
+        report = ReportConfig.from_inventory(inventory_data)
+        service = ServiceConfig.from_inventory(inventory_data)
 
         return cls(
             log_level=env_str("LOG_LEVEL", "INFO").upper(),
@@ -659,14 +1035,14 @@ class AppConfig:
             log_backup_count=env_int("LOG_BACKUP_COUNT", 5),
             log_inventory_details=env_bool("LOG_INVENTORY_DETAILS", False),
 
+            runtime=runtime,
             mikrotik_auth=mikrotik_auth,
-            ssh_port=env_int("MIKROTIK_SSH_PORT", 22),
-            timeout=env_int("MIKROTIK_TIMEOUT", 2),
-            banner_timeout=env_int("MIKROTIK_BANNER_TIMEOUT", env_int("MIKROTIK_TIMEOUT", 5)),
-            workers=env_int("MIKROTIK_WORKERS", 100),
-
-            output_xlsx=env_str("OUTPUT_XLSX", "mikrotik_inventory.xlsx"),
-            output_json=env_optional_path("OUTPUT_JSON"),
+            service=service,
+            audit=audit,
+            compliance=compliance,
+            remediation=remediation,
+            backup=backup,
+            report=report,
 
             inventory_file=inventory_file,
             secrets_file=secrets_file,
@@ -678,6 +1054,7 @@ class AppConfig:
                 secrets=secrets,
                 fallback_credential=first_fallback,
             ),
+            gateway_auth=GatewayAuthConfig.from_sources(secrets),
 
             test_mode=env_bool("TEST_MODE", False),
             test_limit=env_int("TEST_LIMIT", 2),
@@ -725,6 +1102,83 @@ class AppConfig:
             if not self.google.spreadsheet:
                 errors.append("GOOGLE_SPREADSHEET is required when GOOGLE_ENABLED=true")
 
+        if self.auth_timeout <= 0:
+            errors.append("MIKROTIK_AUTH_TIMEOUT must be greater than 0")
+
+        if self.command_timeout < self.timeout:
+            errors.append("MIKROTIK_COMMAND_TIMEOUT must be greater than or equal to MIKROTIK_TIMEOUT")
+
+        if self.ping_timeout <= 0:
+            errors.append("MIKROTIK_PING_TIMEOUT must be greater than 0")
+
+        if self.ping_count <= 0:
+            errors.append("MIKROTIK_PING_COUNT must be greater than 0")
+
+        if self.max_targets < 0:
+            errors.append("MAX_TARGETS cannot be negative")
+
+        allowed_service_actions = {
+            "audit",
+            "export",
+            "phpipam-report",
+            "topology",
+            "generate-script",
+            "backup-configs",
+        }
+        if self.service.action not in allowed_service_actions:
+            errors.append(
+                "SERVICE_ACTION must be one of: audit, export, phpipam-report, topology, generate-script, backup-configs"
+            )
+
+        if self.service.interval_seconds <= 0:
+            errors.append("SERVICE_INTERVAL_SECONDS must be greater than 0")
+
+        if not self.report.write_excel and not self.report.write_ndjson and not (
+            self.report.write_google_sheets and self.google.enabled
+        ):
+            errors.append("At least one report output must be enabled")
+
+        if not self.remediation.allowed_domains:
+            errors.append("settings.remediation.allowed_domains must not be empty")
+
+        if self.remediation.git_enabled:
+            if not self.remediation.git_repo_dir.strip():
+                errors.append("REMEDIATION_GIT_REPO_DIR must not be empty when git mode is enabled")
+            if not self.remediation.git_author_name.strip():
+                errors.append("REMEDIATION_GIT_AUTHOR_NAME must not be empty when git mode is enabled")
+            if not self.remediation.git_author_email.strip():
+                errors.append("REMEDIATION_GIT_AUTHOR_EMAIL must not be empty when git mode is enabled")
+
+        allowed_backup_filename_modes = {"identity-ip", "identity", "ip"}
+        if self.backup.filename_mode not in allowed_backup_filename_modes:
+            errors.append("BACKUP_FILENAME_MODE must be one of: identity-ip, identity, ip")
+
+        if not self.backup.export_command.strip():
+            errors.append("BACKUP_EXPORT_COMMAND must not be empty")
+
+        if self.backup.git_enabled:
+            if not self.backup.git_repo_dir.strip():
+                errors.append("BACKUP_GIT_REPO_DIR must not be empty when backup git mode is enabled")
+            if not self.backup.git_author_name.strip():
+                errors.append("BACKUP_GIT_AUTHOR_NAME must not be empty when backup git mode is enabled")
+            if not self.backup.git_author_email.strip():
+                errors.append("BACKUP_GIT_AUTHOR_EMAIL must not be empty when backup git mode is enabled")
+
+        for index, rule in enumerate(self.scheduler.expected, start=1):
+            if rule.is_staggered:
+                if parse_hms(rule.time_window_start) is None:
+                    errors.append(
+                        f"scheduler.expected[{index}].time_window_start must be HH:MM:SS"
+                    )
+                if parse_hms(rule.time_window_end) is None:
+                    errors.append(
+                        f"scheduler.expected[{index}].time_window_end must be HH:MM:SS"
+                    )
+                if rule.slot_minutes <= 0:
+                    errors.append(
+                        f"scheduler.expected[{index}].slot_minutes must be greater than 0"
+                    )
+
         if errors:
             raise RuntimeError("Invalid application config:\n- " + "\n- ".join(errors))
 
@@ -733,12 +1187,65 @@ class AppConfig:
             "log_level": self.log_level,
             "inventory_file": self.inventory_file,
             "secrets_file": self.secrets_file,
-            "output_xlsx": self.output_xlsx,
-            "mikrotik": {
-                "ssh_port": self.ssh_port,
-                "timeout": self.timeout,
-                "banner_timeout": self.banner_timeout,
+            "runtime": {
                 "workers": self.workers,
+                "ssh_port": self.ssh_port,
+                "connect_timeout": self.timeout,
+                "auth_timeout": self.auth_timeout,
+                "banner_timeout": self.banner_timeout,
+                "command_timeout": self.command_timeout,
+                "ping_timeout": self.ping_timeout,
+                "ping_count": self.ping_count,
+                "max_targets": self.max_targets,
+            },
+            "service": {
+                "enabled": self.service.enabled,
+                "action": self.service.action,
+                "interval_seconds": self.service.interval_seconds,
+                "progress": self.service.progress,
+            },
+            "audit": {
+                "read_only": self.audit.read_only,
+                "preload_phpipam_cache": self.audit.preload_phpipam_cache,
+                "export_single_audit": self.audit.export_single_audit,
+                "fail_fast": self.audit.fail_fast,
+            },
+            "compliance": {
+                "radius": self.compliance.radius,
+                "ntp": self.compliance.ntp,
+                "scheduler": self.compliance.scheduler,
+                "watchdog": self.compliance.watchdog,
+                "phpipam": self.compliance.phpipam,
+            },
+            "remediation": {
+                "enabled": self.remediation.enabled,
+                "allow_apply": self.remediation.allow_apply,
+                "allow_generate_script": self.remediation.allow_generate_script,
+                "allowed_domains": self.remediation.allowed_domains,
+                "output_dir": self.remediation.output_dir,
+                "git_enabled": self.remediation.git_enabled,
+                "git_repo_dir": self.remediation.git_repo_dir,
+                "git_author_name": self.remediation.git_author_name,
+                "git_author_email": self.remediation.git_author_email,
+            },
+            "backup": {
+                "enabled": self.backup.enabled,
+                "output_dir": self.backup.output_dir,
+                "git_enabled": self.backup.git_enabled,
+                "git_repo_dir": self.backup.git_repo_dir,
+                "git_author_name": self.backup.git_author_name,
+                "git_author_email": self.backup.git_author_email,
+                "export_command": self.backup.export_command,
+                "filename_mode": self.backup.filename_mode,
+            },
+            "report": {
+                "output_xlsx": self.output_xlsx,
+                "output_json": self.output_json,
+                "write_excel": self.report.write_excel,
+                "write_ndjson": self.report.write_ndjson,
+                "write_google_sheets": self.report.write_google_sheets,
+            },
+            "mikrotik": {
                 "primary": self.mikrotik_auth.primary.masked(),
                 "fallback": [cred.masked() for cred in self.mikrotik_auth.fallback],
             },

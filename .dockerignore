@@ -1,0 +1,13 @@
+.git
+.venv
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+*.db
+*.sqlite
+*.log
+mikrotik_audit/__pycache__
+mikrotik_audit/logs
+mikrotik_audit/*.xlsx
+mikrotik_audit/*.ndjson

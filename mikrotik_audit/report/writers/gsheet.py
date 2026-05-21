@@ -18,12 +18,10 @@ class GSheetWriter:
 
     def begin_section(self, name: str, headers: list[str]) -> None:
         ws = self._get_or_create(name)
-
-        ws.clear()
-        ws.append_row(headers)
+        merged_headers = self._ensure_headers(ws, headers)
 
         self.sheets[name] = ws
-        self.headers[name] = headers
+        self.headers[name] = merged_headers
         self.buffers[name] = []
 
     def write_row(self, section: str, row: dict) -> None:
@@ -84,3 +82,21 @@ class GSheetWriter:
             return self.spreadsheet.worksheet(title)
         except:
             return self.spreadsheet.add_worksheet(title=title, rows=1000, cols=50)
+
+    def _ensure_headers(self, ws, headers: list[str]) -> list[str]:
+        existing_headers = ws.row_values(1)
+        if not existing_headers:
+            ws.append_row(headers)
+            return headers
+
+        merged_headers = existing_headers[:]
+        for header in headers:
+            if header not in merged_headers:
+                merged_headers.append(header)
+
+        if len(merged_headers) > len(existing_headers):
+            missing_columns = len(merged_headers) - len(existing_headers)
+            ws.add_cols(missing_columns)
+            ws.update("1:1", [merged_headers], value_input_option="RAW")
+
+        return merged_headers

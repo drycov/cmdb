@@ -15,11 +15,11 @@ INVENTORY_HEADERS = [
     "version", "board_name", "platform", "architecture",
     "ospf_instance_count", "ospf_neighbor_count",
     "bridge_count", "bridge_port_count",
-    "scheduler_count", "dhcp_server_count", "dhcp_client_count",
+    "scheduler_count", "scheduler_policy_status", "dhcp_server_count", "dhcp_client_count",
     "ssh_port_value", "winbox_port_value",
     "firewall_filter_count", "firewall_nat_count",
     "route_count", "default_route_count",
-    "vlan_count", "radius_count", "watchdog_enabled",
+    "vlan_count", "radius_count", "ntp_policy_status", "watchdog_enabled", "watchdog_policy_status",
     "ping", "ssh_port", "auth_method",
     "firmware_target_version", "firmware_error", "phpipam_note",
 ]
@@ -41,7 +41,7 @@ PHPIPAM_MISMATCH_HEADERS = [
 ISSUE_HEADERS = [
     "ip", "identity", "status", "inventory_status", "inventory_severity",
     "phpipam_match_type", "phpipam_hostname", "phpipam_ip",
-    "version", "board_name", "firmware_error", "phpipam_note",
+    "version", "board_name", "firmware_error", "scheduler_policy_details", "ntp_policy_details", "watchdog_policy_details", "phpipam_note",
 ]
 
 VLAN_HEADERS = [
@@ -97,8 +97,11 @@ def build_issue_rows(results: Iterable[AuditResult]) -> list[dict[str, Any]]:
         )
         has_inventory_issue = (result.inventory_severity or "").upper() in {"WARNING", "ERROR"}
         has_firmware_issue = bool(result.firmware_error)
+        has_scheduler_issue = (result.scheduler_policy_status or "") not in {"", "OK"}
+        has_ntp_issue = (result.ntp_policy_status or "") not in {"", "OK"}
+        has_watchdog_issue = (result.watchdog_policy_status or "") not in {"", "OK"}
 
-        if has_audit_issue or has_inventory_issue or has_firmware_issue:
+        if has_audit_issue or has_inventory_issue or has_firmware_issue or has_scheduler_issue or has_ntp_issue or has_watchdog_issue:
             rows.append({header: getattr(result, header, "") for header in ISSUE_HEADERS})
 
     return rows

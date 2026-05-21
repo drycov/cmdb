@@ -88,6 +88,10 @@ class DeviceInfo:
     disabled_route_count: str = ""
     dynamic_route_count: str = ""
     static_route_count: str = ""
+    routes: list[dict[str, Any]] = field(default_factory=list)
+    ip_addresses: list[dict[str, Any]] = field(default_factory=list)
+    ospf_instance_details: list[dict[str, Any]] = field(default_factory=list)
+    ospf_neighbor_details: list[dict[str, Any]] = field(default_factory=list)
 
     # VLAN
     vlan_count: str = ""
@@ -102,5 +106,13 @@ class DeviceInfo:
     # AAA / Radius
     radius_count: str = ""
 
+    # NTP
+    ntp_enabled: str = ""
+    ntp_servers: str = ""
+
     # Watchdog
     watchdog_enabled: str = ""
+    watchdog_automatic_supout: str = ""
+    watchdog_ping_start_after_boot: str = ""
+    watchdog_ping_timeout: str = ""
+    watchdog_timer: str = ""

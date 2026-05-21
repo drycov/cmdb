@@ -64,9 +64,12 @@ class AuditResult:
         "bridge_protocol_modes",
 "bridge_vlan_filtering",
 "bridge_igmp_snooping",
-"bridge_warning",
+        "bridge_warning",
         "scheduler_count",
         "scheduler_names",
+        "scheduler_policy_status",
+        "scheduler_policy_expected",
+        "scheduler_policy_details",
         "dhcp_server_count",
         "dhcp_client_count",
         "ssh_port_value",
@@ -84,7 +87,17 @@ class AuditResult:
         "vlan_count",
         "vlan_names",
         "radius_count",
+        "ntp_enabled",
+        "ntp_servers",
+        "ntp_policy_status",
+        "ntp_policy_details",
         "watchdog_enabled",
+        "watchdog_automatic_supout",
+        "watchdog_ping_start_after_boot",
+        "watchdog_ping_timeout",
+        "watchdog_timer",
+        "watchdog_policy_status",
+        "watchdog_policy_details",
         "radius_added",
         "radius_recreated",
         "radius_present_after",
@@ -148,6 +161,11 @@ class AuditResult:
     bridge_names: str = ""
     scheduler_count: str = ""
     scheduler_names: str = ""
+    scheduler_policy_status: str = ""
+    scheduler_policy_expected: str = ""
+    scheduler_policy_details: str = ""
+    scheduler_policy_ok_count: str = ""
+    scheduler_policy_issue_count: str = ""
     dhcp_server_count: str = ""
     dhcp_client_count: str = ""
     ssh_port_value: str = ""
@@ -159,7 +177,19 @@ class AuditResult:
     vlan_count: str = ""
     vlan_names: str = ""
     radius_count: str = ""
+    ntp_enabled: str = ""
+    ntp_servers: str = ""
+    ntp_policy_status: str = ""
+    ntp_policy_expected: str = ""
+    ntp_policy_details: str = ""
     watchdog_enabled: str = ""
+    watchdog_automatic_supout: str = ""
+    watchdog_ping_start_after_boot: str = ""
+    watchdog_ping_timeout: str = ""
+    watchdog_timer: str = ""
+    watchdog_policy_status: str = ""
+    watchdog_policy_expected: str = ""
+    watchdog_policy_details: str = ""
 
     radius_added: bool = False
     radius_recreated: bool = False
@@ -206,6 +236,10 @@ class AuditResult:
     bridge_warning: str = ""
     
     vlan_table: list[dict[str, Any]] = field(default_factory=list)
+    routes: list[dict[str, Any]] = field(default_factory=list)
+    ip_addresses: list[dict[str, Any]] = field(default_factory=list)
+    ospf_instance_details: list[dict[str, Any]] = field(default_factory=list)
+    ospf_neighbor_details: list[dict[str, Any]] = field(default_factory=list)
 
     # --- Bridge ports ---
     bridge_hw_offload_ports: str = ""
@@ -222,6 +256,59 @@ class AuditResult:
     firewall_filter_disabled_count: str = ""
     firewall_filter_drop_count: str = ""
     firewall_filter_accept_count: str = ""
+
+    def apply_scheduler_policy(self, checks: list[Any]) -> None:
+        if not checks:
+            self.scheduler_policy_status = ""
+            self.scheduler_policy_expected = ""
+            self.scheduler_policy_details = ""
+            self.scheduler_policy_ok_count = "0"
+            self.scheduler_policy_issue_count = "0"
+            return
+
+        expected = []
+        details = []
+        ok_count = 0
+        issue_count = 0
+
+        for check in checks:
+            name = getattr(check, "name", "")
+            status = getattr(check, "status", "")
+            expected_time = getattr(check, "expected_start_time", "")
+            actual_time = getattr(check, "actual_start_time", "")
+            message = getattr(check, "message", "")
+
+            if name and expected_time:
+                expected.append(f"{name}={expected_time}")
+
+            if status == "OK":
+                ok_count += 1
+            else:
+                issue_count += 1
+
+            if status != "OK":
+                summary = f"{name}:{status}"
+                if actual_time:
+                    summary += f":actual={actual_time}"
+                if message:
+                    summary += f":{message}"
+                details.append(summary)
+
+        self.scheduler_policy_status = "OK" if issue_count == 0 else "MISMATCH"
+        self.scheduler_policy_expected = ", ".join(expected)
+        self.scheduler_policy_details = "; ".join(details)
+        self.scheduler_policy_ok_count = str(ok_count)
+        self.scheduler_policy_issue_count = str(issue_count)
+
+    def apply_ntp_policy(self, check: Any) -> None:
+        self.ntp_policy_status = str(getattr(check, "status", "") or "")
+        self.ntp_policy_expected = str(getattr(check, "expected", "") or "")
+        self.ntp_policy_details = str(getattr(check, "message", "") or "")
+
+    def apply_watchdog_policy(self, check: Any) -> None:
+        self.watchdog_policy_status = str(getattr(check, "status", "") or "")
+        self.watchdog_policy_expected = str(getattr(check, "expected", "") or "")
+        self.watchdog_policy_details = str(getattr(check, "message", "") or "")
     
     def apply_device_info(self, info: DeviceInfo) -> None:
         self.identity = info.identity
@@ -266,7 +353,13 @@ class AuditResult:
         self.vlan_count = info.vlan_count
         self.vlan_names = info.vlan_names
         self.radius_count = info.radius_count
+        self.ntp_enabled = info.ntp_enabled
+        self.ntp_servers = info.ntp_servers
         self.watchdog_enabled = info.watchdog_enabled
+        self.watchdog_automatic_supout = info.watchdog_automatic_supout
+        self.watchdog_ping_start_after_boot = info.watchdog_ping_start_after_boot
+        self.watchdog_ping_timeout = info.watchdog_ping_timeout
+        self.watchdog_timer = info.watchdog_timer
         # OSPF extended
         self.ospf_full_neighbors = info.ospf_full_neighbors
         self.ospf_twoway_neighbors = info.ospf_twoway_neighbors
@@ -297,6 +390,10 @@ class AuditResult:
         self.firewall_filter_drop_count = info.firewall_filter_drop_count
         self.firewall_filter_accept_count = info.firewall_filter_accept_count
         self.vlan_table = getattr(info, "vlan_table", [])
+        self.routes = getattr(info, "routes", [])
+        self.ip_addresses = getattr(info, "ip_addresses", [])
+        self.ospf_instance_details = getattr(info, "ospf_instance_details", [])
+        self.ospf_neighbor_details = getattr(info, "ospf_neighbor_details", [])
 
     def apply_firmware(self, fw: FirmwareResult) -> None:
         self.firmware_candidate = fw.firmware_candidate
@@ -319,6 +416,84 @@ class AuditResult:
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
+
+    def to_device_info(self) -> DeviceInfo:
+        return DeviceInfo(
+            identity=self.identity,
+            version=self.version,
+            uptime=self.uptime,
+            cpu_load=self.cpu_load,
+            board_name=self.board_name,
+            platform=self.platform,
+            architecture=self.architecture,
+            total_memory=self.total_memory,
+            free_memory=self.free_memory,
+            total_hdd=self.total_hdd,
+            free_hdd=self.free_hdd,
+            license=self.license,
+            current_firmware=self.current_firmware,
+            upgrade_firmware=self.upgrade_firmware,
+            interface_count=self.interface_count,
+            mac_address=self.mac_address,
+            uplink_interface=self.uplink_interface,
+            uplink_mac=self.uplink_mac,
+            neighbor_identity=self.neighbor_identity,
+            neighbor_address=self.neighbor_address,
+            neighbor_interface=self.neighbor_interface,
+            neighbor_mac=self.neighbor_mac,
+            installed_packages=self.installed_packages,
+            ospf_instance_count=self.ospf_instance_count,
+            ospf_neighbor_count=self.ospf_neighbor_count,
+            ospf_instances=self.ospf_instances,
+            ospf_full_neighbors=self.ospf_full_neighbors,
+            ospf_twoway_neighbors=self.ospf_twoway_neighbors,
+            ospf_other_neighbors=self.ospf_other_neighbors,
+            ospf_unstable_neighbors=self.ospf_unstable_neighbors,
+            ospf_dr=self.ospf_dr,
+            ospf_bdr=self.ospf_bdr,
+            bridge_count=self.bridge_count,
+            bridge_port_count=self.bridge_port_count,
+            bridge_names=self.bridge_names,
+            bridge_protocol_modes=self.bridge_protocol_modes,
+            bridge_vlan_filtering=self.bridge_vlan_filtering,
+            bridge_igmp_snooping=self.bridge_igmp_snooping,
+            bridge_warning=self.bridge_warning,
+            bridge_hw_offload_ports=self.bridge_hw_offload_ports,
+            bridge_restricted_role_ports=self.bridge_restricted_role_ports,
+            bridge_access_ports=self.bridge_access_ports,
+            bridge_trunk_like_ports=self.bridge_trunk_like_ports,
+            scheduler_count=self.scheduler_count,
+            scheduler_names=self.scheduler_names,
+            dhcp_server_count=self.dhcp_server_count,
+            dhcp_client_count=self.dhcp_client_count,
+            ssh_port_value=self.ssh_port_value,
+            winbox_port_value=self.winbox_port_value,
+            firewall_filter_count=self.firewall_filter_count,
+            firewall_nat_count=self.firewall_nat_count,
+            firewall_filter_disabled_count=self.firewall_filter_disabled_count,
+            firewall_filter_drop_count=self.firewall_filter_drop_count,
+            firewall_filter_accept_count=self.firewall_filter_accept_count,
+            route_count=self.route_count,
+            default_route_count=self.default_route_count,
+            disabled_route_count=self.disabled_route_count,
+            dynamic_route_count=self.dynamic_route_count,
+            static_route_count=self.static_route_count,
+            routes=self.routes,
+            ip_addresses=self.ip_addresses,
+            ospf_instance_details=self.ospf_instance_details,
+            ospf_neighbor_details=self.ospf_neighbor_details,
+            vlan_count=self.vlan_count,
+            vlan_names=self.vlan_names,
+            vlan_table=self.vlan_table,
+            radius_count=self.radius_count,
+            ntp_enabled=self.ntp_enabled,
+            ntp_servers=self.ntp_servers,
+            watchdog_enabled=self.watchdog_enabled,
+            watchdog_automatic_supout=self.watchdog_automatic_supout,
+            watchdog_ping_start_after_boot=self.watchdog_ping_start_after_boot,
+            watchdog_ping_timeout=self.watchdog_ping_timeout,
+            watchdog_timer=self.watchdog_timer,
+        )
 
     def to_export_row(self) -> list[Any]:
         row_dict = self.to_dict()

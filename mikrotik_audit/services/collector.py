@@ -31,6 +31,24 @@ class MikroTikCollector:
         return ""
 
     @staticmethod
+    def _join_nonempty(*values: str) -> str:
+        items = [value.strip() for value in values if value and value.strip()]
+        return ", ".join(dict.fromkeys(items))
+
+    @staticmethod
+    def _normalize_ntp_enabled(ntp_client: dict[str, str]) -> str:
+        enabled = str(ntp_client.get("enabled", "")).strip().lower()
+        if enabled:
+            return enabled
+
+        mode = str(ntp_client.get("mode", "")).strip().lower()
+        if not mode:
+            return ""
+        if mode in {"disabled", "off", "no"}:
+            return "no"
+        return "yes"
+
+    @staticmethod
     def _join_values(
         blocks: list[dict[str, str]],
         *keys: str,
@@ -254,6 +272,7 @@ class MikroTikCollector:
                     "interface": item.get("interface", ""),
                     "mtu": item.get("mtu", ""),
                     "mac_address": item.get("mac_address", ""),
+                    "comment": item.get("comment", ""),
                 }
             )
 
@@ -435,15 +454,39 @@ class MikroTikCollector:
         service_out = session.exec(MikroTikCommands.IP_SERVICE_DETAIL)
         firewall_filter_out = session.exec(MikroTikCommands.FIREWALL_FILTER_DETAIL)
         firewall_nat_out = session.exec(MikroTikCommands.FIREWALL_NAT_DETAIL)
+        ip_address_out = session.exec(MikroTikCommands.IP_ADDRESS_DETAIL)
         route_out = session.exec(MikroTikCommands.IP_ROUTE_DETAIL)
         vlan_out = session.exec(MikroTikCommands.VLAN_DETAIL)
         radius_out = session.exec(MikroTikCommands.RADIUS_DETAIL)
+        ntp_client_out = (
+            session.exec(
+                MikroTikCommands.SYSTEM_NTP_CLIENT_DETAIL,
+                warn_on_error=False,
+            )
+            or session.exec(
+                MikroTikCommands.SYSTEM_NTP_CLIENT,
+                warn_on_error=False,
+            )
+            or ""
+        )
+        ntp_servers_out = (
+            session.exec(
+                MikroTikCommands.SYSTEM_NTP_CLIENT_SERVERS_DETAIL,
+                warn_on_error=False,
+            )
+            or session.exec(
+                MikroTikCommands.SYSTEM_NTP_CLIENT_SERVERS,
+                warn_on_error=False,
+            )
+            or ""
+        )
         watchdog_out = session.exec(MikroTikCommands.WATCHDOG_PRINT)
 
         resource = parse_colon_output(resource_out)
         identity = parse_colon_output(identity_out or "")
         routerboard = parse_colon_output(routerboard_out or "")
         license_data = parse_colon_output(license_out or "")
+        ntp_client = parse_colon_output(ntp_client_out or "")
         watchdog = parse_colon_output(watchdog_out or "")
 
         interface_count = self._parse_count(interfaces_out)
@@ -461,9 +504,24 @@ class MikroTikCollector:
         service_blocks = parse_detail_blocks(service_out or "")
         firewall_filter_blocks = parse_detail_blocks(firewall_filter_out or "")
         firewall_nat_blocks = parse_detail_blocks(firewall_nat_out or "")
+        ip_address_blocks = parse_detail_blocks(ip_address_out or "")
         route_blocks = parse_detail_blocks(route_out or "")
         vlan_blocks = parse_detail_blocks(vlan_out or "")
         radius_blocks = parse_detail_blocks(radius_out or "")
+        ntp_server_blocks = parse_detail_blocks(ntp_servers_out or "")
+        ntp_servers_value = self._join_values(
+            ntp_server_blocks,
+            "address",
+            "server",
+            "host",
+        )
+        if not ntp_servers_value:
+            ntp_servers_value = self._join_nonempty(
+                str(ntp_client.get("primary_ntp", "")),
+                str(ntp_client.get("secondary_ntp", "")),
+                str(ntp_client.get("server_dns_names", "")),
+                str(ntp_client.get("servers", "")),
+            )
 
         primary_mac = self._find_primary_mac(interfaces)
         neighbor = self._find_neighbor(neighbor_blocks)
@@ -511,6 +569,7 @@ class MikroTikCollector:
             ospf_instance_count=str(len(ospf_instance_blocks)),
             ospf_neighbor_count=str(len(ospf_neighbor_blocks)),
             ospf_instances=self._join_values(ospf_instance_blocks, "name"),
+            ospf_instance_details=ospf_instance_blocks,
             bridge_count=str(len(bridge_blocks)),
             bridge_port_count=str(len(bridge_port_blocks)),
             bridge_names=self._join_values(bridge_blocks, "name"),
@@ -523,13 +582,24 @@ class MikroTikCollector:
             firewall_filter_count=str(len(firewall_filter_blocks)),
             firewall_nat_count=str(len(firewall_nat_blocks)),
             route_count=str(len(route_blocks)),
+            routes=route_blocks,
+            ip_addresses=ip_address_blocks,
             vlan_count=str(len(vlan_blocks)),
             vlan_names=self._join_values(vlan_blocks, "name"),
+            ospf_neighbor_details=ospf_neighbor_blocks,
             radius_count=str(len(radius_blocks)),
+            ntp_enabled=self._normalize_ntp_enabled(ntp_client),
+            ntp_servers=ntp_servers_value,
             watchdog_enabled=str(
                 watchdog.get("watchdog_timer", "")
                 or watchdog.get("automatic_supout", "")
             ),
+            watchdog_automatic_supout=str(watchdog.get("automatic_supout", "")),
+            watchdog_ping_start_after_boot=str(
+                watchdog.get("ping_start_after_boot", "")
+            ),
+            watchdog_ping_timeout=str(watchdog.get("ping_timeout", "")),
+            watchdog_timer=str(watchdog.get("watchdog_timer", "")),
             vlan_table=vlan_table,
 
             # Новые расширенные поля.
