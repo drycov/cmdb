@@ -1,3 +1,5 @@
+"""Implementation details for services export excel_exporter."""
+
 from __future__ import annotations
 
 import json
@@ -8,8 +10,8 @@ from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill
 from openpyxl.worksheet.worksheet import Worksheet
 
-from config import AppConfig
-from models import AuditResult
+from mikrotik_audit.config import AppConfig
+from mikrotik_audit.models import AuditResult
 
 from .common import (
     INVENTORY_HEADERS,
@@ -28,6 +30,7 @@ from .common import (
 
 
 class ExcelExporter:
+    """Represent excelexporter."""
     HEADER_FILL = PatternFill("solid", fgColor="1F1F1F")
     SECTION_FILL = PatternFill("solid", fgColor="D9E2F3")
 

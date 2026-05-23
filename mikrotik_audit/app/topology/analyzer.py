@@ -1,21 +1,25 @@
+"""Implementation details for app topology analyzer."""
+
 from __future__ import annotations
 
 import re
 from dataclasses import asdict
 from typing import Iterable
 
-from models.device_info import DeviceInfo
-from services.collector import MikroTikCollector
-from services.ssh import SSHSession
+from mikrotik_audit.models.device_info import DeviceInfo
+from mikrotik_audit.services.collector import MikroTikCollector
+from mikrotik_audit.services.ssh import SSHSession
 
 from .models import TopologyAnalysisResult, TopologyDevice, TopologyLink
 
 
 def _normalize_mac(mac: str) -> str:
+    """Internal helper for normalize mac."""
     return re.sub(r"[^0-9a-f]", "", mac.lower()) if mac else ""
 
 
 class TopologyAnalyzer:
+    """Represent topologyanalyzer."""
     def __init__(self, collector: MikroTikCollector) -> None:
         self.collector = collector
 

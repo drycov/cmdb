@@ -1,8 +1,16 @@
+"""Canonical Source-of-Truth domain model for snapshots and network graph data.
+
+These models define the vocabulary shared by collection, persistence, API
+serialization, and future analytics. Keeping the schema in one place gives the
+team a stable contract for what a device, link, risk, or remediation plan
+means across the project.
+"""
+
 from __future__ import annotations
 
 from datetime import datetime
 from enum import Enum
-from ipaddress import IPv4Address,IPv6Address, IPv4Interface, IPv4Network, IPv6Interface, IPv6Network
+from ipaddress import IPv4Address, IPv6Address, IPv4Interface, IPv4Network, IPv6Interface, IPv6Network
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -10,6 +18,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class Severity(str, Enum):
+    """Normalized severity scale used by inferred risks and recommendations."""
     INFO = "info"
     LOW = "low"
     MEDIUM = "medium"
@@ -18,6 +27,7 @@ class Severity(str, Enum):
 
 
 class LinkLayer(str, Enum):
+    """Layer classification for topology relationships."""
     PHYSICAL = "physical"
     L2 = "l2"
     L3 = "l3"
@@ -26,6 +36,7 @@ class LinkLayer(str, Enum):
 
 
 class DeviceRole(str, Enum):
+    """High-level operational role assigned to a network device."""
     UNKNOWN = "unknown"
     ACCESS_EDGE = "access_edge"
     DISTRIBUTION = "distribution"
@@ -41,6 +52,7 @@ class DeviceRole(str, Enum):
 
 
 class InterfaceRole(str, Enum):
+    """Normalized intent of an interface within the topology."""
     UNKNOWN = "unknown"
     ACCESS = "access"
     TRUNK = "trunk"
@@ -52,10 +64,12 @@ class InterfaceRole(str, Enum):
 
 
 class EntityModel(BaseModel):
+    """Base model for SoT entities with strict validation defaults."""
     model_config = ConfigDict(extra="forbid", frozen=False, populate_by_name=True)
 
 
 class SnapshotMetadata(EntityModel):
+    """Lifecycle and provenance metadata for one collected snapshot."""
     snapshot_id: UUID = Field(default_factory=uuid4)
     scope: str = "global"
     started_at: datetime
@@ -67,6 +81,7 @@ class SnapshotMetadata(EntityModel):
 
 
 class InterfaceCounters(EntityModel):
+    """Represent interfacecounters."""
     rx_bps: float | None = None
     tx_bps: float | None = None
     rx_packets: int | None = None
@@ -79,6 +94,7 @@ class InterfaceCounters(EntityModel):
 
 
 class Optic(EntityModel):
+    """Represent optic."""
     optic_id: UUID = Field(default_factory=uuid4)
     interface_name: str
     vendor: str | None = None
@@ -93,6 +109,7 @@ class Optic(EntityModel):
 
 
 class Interface(EntityModel):
+    """Structured view of one device interface and its operational context."""
     interface_id: UUID = Field(default_factory=uuid4)
     device_id: UUID
     name: str
@@ -117,6 +134,7 @@ class Interface(EntityModel):
 
 
 class Bridge(EntityModel):
+    """Represent bridge."""
     bridge_id: UUID = Field(default_factory=uuid4)
     device_id: UUID
     name: str
@@ -129,6 +147,7 @@ class Bridge(EntityModel):
 
 
 class VLAN(EntityModel):
+    """Represent vlan."""
     vlan_id: int
     name: str | None = None
     bridge_name: str | None = None
@@ -139,6 +158,7 @@ class VLAN(EntityModel):
 
 
 class Neighbor(EntityModel):
+    """Represent neighbor."""
     neighbor_id: UUID = Field(default_factory=uuid4)
     device_id: UUID
     local_interface: str
@@ -153,6 +173,7 @@ class Neighbor(EntityModel):
 
 
 class Route(EntityModel):
+    """Represent route."""
     route_id: UUID = Field(default_factory=uuid4)
     device_id: UUID
     destination: IPv4Network | IPv6Network | None = None
@@ -165,6 +186,7 @@ class Route(EntityModel):
 
 
 class OSPFNeighbor(EntityModel):
+    """Represent ospfneighbor."""
     ospf_neighbor_id: UUID = Field(default_factory=uuid4)
     device_id: UUID
     router_id: str | None = None
@@ -177,6 +199,7 @@ class OSPFNeighbor(EntityModel):
 
 
 class DeviceCapabilities(EntityModel):
+    """Represent devicecapabilities."""
     hardware_offload: bool | None = None
     switch_chip: str | None = None
     supports_vlan_filtering: bool | None = None
@@ -187,6 +210,7 @@ class DeviceCapabilities(EntityModel):
 
 
 class Device(EntityModel):
+    """Canonical representation of a managed network device."""
     device_id: UUID = Field(default_factory=uuid4)
     identity: str
     management_ip: IPv4Address | None = None
@@ -215,6 +239,7 @@ class Device(EntityModel):
 
 
 class NetworkSegment(EntityModel):
+    """Represent networksegment."""
     segment_id: UUID = Field(default_factory=uuid4)
     name: str
     cidr: IPv4Network | None = None
@@ -223,6 +248,7 @@ class NetworkSegment(EntityModel):
 
 
 class BroadcastDomain(EntityModel):
+    """Layer-2 broadcast domain inferred from bridges, VLANs, and interfaces."""
     broadcast_domain_id: UUID = Field(default_factory=uuid4)
     name: str
     vlan_id: int | None = None
@@ -234,6 +260,7 @@ class BroadcastDomain(EntityModel):
 
 
 class TopologyLink(EntityModel):
+    """Directed relationship between two devices or interfaces in the topology."""
     link_id: UUID = Field(default_factory=uuid4)
     layer: LinkLayer
     source_device_id: UUID
@@ -247,6 +274,7 @@ class TopologyLink(EntityModel):
 
 
 class WirelessLink(EntityModel):
+    """Represent wirelesslink."""
     wireless_link_id: UUID = Field(default_factory=uuid4)
     source_device_id: UUID
     source_interface: str
@@ -259,6 +287,7 @@ class WirelessLink(EntityModel):
 
 
 class VLANPropagation(EntityModel):
+    """Represent vlanpropagation."""
     propagation_id: UUID = Field(default_factory=uuid4)
     vlan_id: int
     source_device_id: UUID
@@ -271,6 +300,7 @@ class VLANPropagation(EntityModel):
 
 
 class Ring(EntityModel):
+    """Represent ring."""
     ring_id: UUID = Field(default_factory=uuid4)
     node_device_ids: list[UUID] = Field(default_factory=list)
     edge_link_ids: list[UUID] = Field(default_factory=list)
@@ -280,6 +310,7 @@ class Ring(EntityModel):
 
 
 class Recommendation(EntityModel):
+    """Represent recommendation."""
     recommendation_id: UUID = Field(default_factory=uuid4)
     title: str
     summary: str
@@ -290,6 +321,7 @@ class Recommendation(EntityModel):
 
 
 class Risk(EntityModel):
+    """Actionable finding inferred from a snapshot and linked evidence."""
     risk_id: UUID = Field(default_factory=uuid4)
     rule_id: str
     title: str
@@ -303,6 +335,7 @@ class Risk(EntityModel):
 
 
 class RemediationStep(EntityModel):
+    """Represent remediationstep."""
     step_id: UUID = Field(default_factory=uuid4)
     title: str
     routeros_commands: list[str] = Field(default_factory=list)
@@ -311,6 +344,7 @@ class RemediationStep(EntityModel):
 
 
 class RemediationPlan(EntityModel):
+    """Ordered set of steps proposed to address one or more snapshot risks."""
     plan_id: UUID = Field(default_factory=uuid4)
     snapshot_id: UUID
     summary: str
@@ -320,6 +354,7 @@ class RemediationPlan(EntityModel):
 
 
 class NetworkSnapshot(EntityModel):
+    """Complete snapshot graph combining inventory, topology, and findings."""
     metadata: SnapshotMetadata
     devices: list[Device] = Field(default_factory=list)
     network_segments: list[NetworkSegment] = Field(default_factory=list)

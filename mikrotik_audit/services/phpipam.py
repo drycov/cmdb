@@ -1,3 +1,5 @@
+"""Implementation details for services phpipam."""
+
 from __future__ import annotations
 
 import ipaddress
@@ -6,11 +8,12 @@ from typing import Any, Dict, Optional
 
 import requests
 
-from config import PHPIPAMConfig
-from models import AuditResult
+from mikrotik_audit.config import PHPIPAMConfig
+from mikrotik_audit.models import AuditResult
 
 
 class PHPIPAMClient:
+    """Communicate through the phpipamclient client."""
     def __init__(self, config: PHPIPAMConfig, logger: logging.Logger) -> None:
         self.config = config
         self.logger = logger

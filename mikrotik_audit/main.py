@@ -1,6 +1,8 @@
+"""Compatibility CLI entry point for launching the packaged command-line interface."""
+
 from __future__ import annotations
 
-from cli import main
+from mikrotik_audit.entrypoints.cli import main
 
 
 if __name__ == "__main__":

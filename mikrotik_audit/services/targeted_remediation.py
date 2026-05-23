@@ -1,21 +1,24 @@
+"""Implementation details for services targeted_remediation."""
+
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
-from commands.mikrotik import MikroTikCommands
-from config import AppConfig
-from models import Credentials, DeviceInfo
-from services.collector import MikroTikCollector
-from services.compliance import DevicePolicyInspector
-from services.scheduler import SchedulerPolicyInspector
-from services.script_repository import ScriptRepository
-from services.ssh import SSHService, SSHSession
+from mikrotik_audit.commands.mikrotik import MikroTikCommands
+from mikrotik_audit.config import AppConfig
+from mikrotik_audit.models import Credentials, DeviceInfo
+from mikrotik_audit.services.collector import MikroTikCollector
+from mikrotik_audit.services.compliance import DevicePolicyInspector
+from mikrotik_audit.services.scheduler import SchedulerPolicyInspector
+from mikrotik_audit.services.script_repository import ScriptRepository
+from mikrotik_audit.services.ssh import SSHService, SSHSession
 
 
 @dataclass(slots=True)
 class RemediationDomainResult:
+    """Represent the remediationdomainresult payload."""
     domain: str
     compliant: bool
     commands: list[str] = field(default_factory=list)
@@ -29,6 +32,7 @@ class RemediationDomainResult:
 
 @dataclass(slots=True)
 class TargetedRemediationResult:
+    """Represent the targetedremediationresult payload."""
     ip: str
     identity: str = ""
     auth_method: str = ""
@@ -52,6 +56,7 @@ class TargetedRemediationResult:
 
 
 class TargetedRemediator:
+    """Represent targetedremediator."""
     NON_CRITICAL_DOMAINS = ("ntp", "watchdog", "scheduler")
 
     def __init__(

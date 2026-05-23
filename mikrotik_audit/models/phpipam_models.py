@@ -1,3 +1,5 @@
+"""Implementation details for models phpipam_models."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -5,6 +7,7 @@ from dataclasses import dataclass
 
 @dataclass(slots=True)
 class PHPIPAMAddress:
+    """Represent phpipamaddress."""
     id: str = ""
     ip: str = ""
     hostname: str = ""

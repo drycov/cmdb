@@ -1,14 +1,16 @@
+"""Implementation details for services firmware."""
+
 from __future__ import annotations
 
 import logging
 from pathlib import Path
 
-from commands.mikrotik import MikroTikCommands
-from config import AppConfig
-from constants.error_codes import FirmwareErrorCode
-from models import FirmwareResult
-from services.ssh import SSHSession
-from utils import (
+from mikrotik_audit.commands.mikrotik import MikroTikCommands
+from mikrotik_audit.config import AppConfig
+from mikrotik_audit.constants.error_codes import FirmwareErrorCode
+from mikrotik_audit.models import FirmwareResult
+from mikrotik_audit.services.ssh import SSHSession
+from mikrotik_audit.utils import (
     _version_tokens,
     compare_versions,
     extract_version_from_filename,
@@ -17,6 +19,7 @@ from utils import (
 
 
 class FirmwareManager:
+    """Represent firmwaremanager."""
     def __init__(self, config: AppConfig, logger: logging.Logger) -> None:
         self.config = config
         self.logger = logger

@@ -1,14 +1,17 @@
+"""Implementation details for domain phpipam_registry_async."""
+
 from __future__ import annotations
 
 import logging
 
-from config import PHPIPAMConfig
-from models import AuditResult
-from services.phpipam_async import AsyncPHPIPAMClient
-from utils import hostname_tokens, normalize_hostname
+from mikrotik_audit.config import PHPIPAMConfig
+from mikrotik_audit.models import AuditResult
+from mikrotik_audit.services.phpipam_async import AsyncPHPIPAMClient
+from mikrotik_audit.utils import hostname_tokens, normalize_hostname
 
 
 class AsyncPHPIPAMRegistryService:
+    """Provide the asyncphpipamregistryservice service."""
     def __init__(
         self,
         config: PHPIPAMConfig,

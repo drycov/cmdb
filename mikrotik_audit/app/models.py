@@ -1,3 +1,5 @@
+"""Implementation details for app models."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -6,6 +8,7 @@ from typing import Any, Dict, List, Optional
 
 @dataclass
 class PortModel:
+    """Represent portmodel."""
     name: str
     comment: Optional[str] = None
     pvid: Optional[int] = None
@@ -17,6 +20,7 @@ class PortModel:
 
 @dataclass
 class DeviceModel:
+    """Represent devicemodel."""
     identity: str = ""
     model: str = ""
     mgmt_ip: Optional[str] = None
@@ -28,6 +32,7 @@ class DeviceModel:
 
 @dataclass
 class AnalysisResult:
+    """Represent the analysisresult payload."""
     device: DeviceModel
     transit_detected: bool = False
     radio_detected: bool = False

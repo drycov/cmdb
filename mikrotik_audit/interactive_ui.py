@@ -1,3 +1,5 @@
+"""Implementation details for interactive_ui."""
+
 from __future__ import annotations
 
 import ipaddress
@@ -33,6 +35,7 @@ REMEDIATION_DOMAINS = ["ntp", "watchdog", "scheduler"]
 
 @dataclass(slots=True)
 class InteractiveSelection:
+    """Represent interactiveselection."""
     action: str = "quit"
     ip: str = ""
     export: bool = True
@@ -55,6 +58,7 @@ class InteractiveSelection:
 
 @dataclass(slots=True)
 class OutputPayload:
+    """Represent outputpayload."""
     title: str
     text: str = ""
     summary_lines: list[str] = field(default_factory=list)
@@ -69,6 +73,7 @@ AppEditorSaver = Callable[[str, str], str]
 
 
 class ActionListItem(ListItem):
+    """Represent actionlistitem."""
     def __init__(self, label: str, action: str) -> None:
         super().__init__(Label(label))
         self.label_text = label
@@ -76,12 +81,14 @@ class ActionListItem(ListItem):
 
 
 class TargetListItem(ListItem):
+    """Represent targetlistitem."""
     def __init__(self, ip: str) -> None:
         super().__init__(Label(ip))
         self.ip = ip
 
 
 class InventoryEditorScreen(ModalScreen[None]):
+    """Represent inventoryeditorscreen."""
     BINDINGS = [
         Binding("ctrl+s", "save", "Save"),
         Binding("escape", "cancel", "Close"),
@@ -128,6 +135,7 @@ class InventoryEditorScreen(ModalScreen[None]):
 
 
 class AppSettingsEditorScreen(ModalScreen[None]):
+    """Represent appsettingseditorscreen."""
     BINDINGS = [
         Binding("ctrl+s", "save", "Save"),
         Binding("escape", "cancel", "Close"),
@@ -188,6 +196,7 @@ class AppSettingsEditorScreen(ModalScreen[None]):
 
 
 class InteractiveDashboardApp(App[dict[str, Any]]):
+    """Represent interactivedashboardapp."""
     CSS = """
     Screen {
         layout: vertical;
@@ -644,6 +653,7 @@ def run_interactive_ui(
     app_env_text: str = "",
     app_settings_saver: AppEditorSaver | None = None,
 ) -> dict[str, Any]:
+    """Run interactive ui."""
     app = InteractiveDashboardApp(
         inline_handlers=inline_handlers,
         setup_defaults=setup_defaults,

@@ -1,14 +1,17 @@
+"""Implementation details for domain sync."""
+
 from __future__ import annotations
 
 import logging
 from typing import Iterable
 
-from config import PHPIPAMConfig
-from models import AuditResult
-from services.phpipam import PHPIPAMClient
+from mikrotik_audit.config import PHPIPAMConfig
+from mikrotik_audit.models import AuditResult
+from mikrotik_audit.services.phpipam import PHPIPAMClient
 
 
 class PHPIPAMSyncService:
+    """Provide the phpipamsyncservice service."""
     def __init__(
         self,
         config: PHPIPAMConfig,

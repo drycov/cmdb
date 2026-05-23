@@ -1,8 +1,11 @@
+"""Implementation details for constants statuses."""
+
 from __future__ import annotations
 from enum import StrEnum
 
 
 class AuditStatus(StrEnum):
+    """Represent auditstatus."""
     SSH_OK = "ssh_ok"
     FALLBACK_OK = "fallback_ok"
     OFFLINE = "offline"

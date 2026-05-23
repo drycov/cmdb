@@ -1,3 +1,5 @@
+"""Implementation details for models device_info."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -7,6 +9,7 @@ from typing import Any
 @dataclass(slots=True)
 class DeviceInfo:
     # System
+    """Represent deviceinfo."""
     identity: str = ""
     version: str = ""
     uptime: str = ""

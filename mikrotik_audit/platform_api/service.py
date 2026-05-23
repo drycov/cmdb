@@ -1,10 +1,12 @@
+"""Implementation details for platform_api service."""
+
 from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from app_runtime import build_app
-from sot.adapters import device_from_audit_result
-from sot.domain import (
+from mikrotik_audit.runtime.bootstrap import build_app
+from mikrotik_audit.sot.adapters import device_from_audit_result
+from mikrotik_audit.sot.domain import (
     BroadcastDomain,
     LinkLayer,
     NetworkSnapshot,
@@ -17,7 +19,7 @@ from sot.domain import (
     TopologyLink,
     VLANPropagation,
 )
-from sot.pipeline import RawCommandPayload
+from mikrotik_audit.sot.pipeline import RawCommandPayload
 from uuid import uuid4
 
 from .repositories import (
@@ -55,6 +57,7 @@ from .schemas import (
 
 
 class SnapshotService:
+    """Provide the snapshotservice service."""
     def __init__(
         self,
         repository: SqlAlchemySnapshotRepository,

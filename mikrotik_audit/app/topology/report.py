@@ -1,3 +1,5 @@
+"""Implementation details for app topology report."""
+
 from __future__ import annotations
 
 import json
@@ -64,6 +66,7 @@ topology_vlan_headers = [
 
 
 def to_json(results: list[TopologyAnalysisResult], links: list[TopologyLink]) -> str:
+    """Handle to json."""
     payload = {
         "devices": [
             {
@@ -82,6 +85,7 @@ def to_json(results: list[TopologyAnalysisResult], links: list[TopologyLink]) ->
 
 
 def to_markdown(results: list[TopologyAnalysisResult], links: list[TopologyLink]) -> str:
+    """Handle to markdown."""
     lines: list[str] = []
     lines.append("# Topology Scan")
     lines.append("")
@@ -110,6 +114,7 @@ def to_markdown(results: list[TopologyAnalysisResult], links: list[TopologyLink]
 
 
 def _build_device_row(result: TopologyAnalysisResult) -> dict[str, Any]:
+    """Internal helper for build device row."""
     return {
         "ip": result.device.ip,
         "identity": result.device.identity,
@@ -131,6 +136,7 @@ def _build_device_row(result: TopologyAnalysisResult) -> dict[str, Any]:
 
 
 def _build_link_row(link: TopologyLink) -> dict[str, Any]:
+    """Internal helper for build link row."""
     return {
         "source_ip": link.source_ip,
         "source_identity": link.source_identity,
@@ -146,6 +152,7 @@ def _build_link_row(link: TopologyLink) -> dict[str, Any]:
 
 
 def _build_vlan_rows(results: list[TopologyAnalysisResult]) -> list[dict[str, Any]]:
+    """Internal helper for build vlan rows."""
     rows: list[dict[str, Any]] = []
     for result in results:
         info = result.device.device_info
@@ -171,6 +178,7 @@ def _build_vlan_rows(results: list[TopologyAnalysisResult]) -> list[dict[str, An
 
 
 def _build_summary_row(results: list[TopologyAnalysisResult], links: list[TopologyLink]) -> dict[str, Any]:
+    """Internal helper for build summary row."""
     status_counts: dict[str, int] = {
         "online": 0,
         "ssh_ok": 0,
@@ -210,6 +218,7 @@ def _build_summary_row(results: list[TopologyAnalysisResult], links: list[Topolo
 
 
 def build_sections_from_topology(results: list[TopologyAnalysisResult], links: list[TopologyLink]) -> dict[str, tuple[list[str], list[dict[str, Any]]]]:
+    """Build sections from topology."""
     return {
         "topology_summary": (
             topology_summary_headers,

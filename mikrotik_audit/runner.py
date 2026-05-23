@@ -1,5 +1,7 @@
+"""Compatibility runner exports for the packaged audit application."""
+
 from __future__ import annotations
 
-from app_runtime import AuditApplication as AuditRunner
+from mikrotik_audit.runtime.bootstrap import AuditApplication as AuditRunner
 
 __all__ = ["AuditRunner"]

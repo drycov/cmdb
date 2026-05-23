@@ -1,14 +1,17 @@
+"""Implementation details for services radius."""
+
 from __future__ import annotations
 
 import logging
 
-from commands.mikrotik import MikroTikCommands
-from config import AppConfig
-from models import RadiusResult
-from services.ssh import SSHSession
+from mikrotik_audit.commands.mikrotik import MikroTikCommands
+from mikrotik_audit.config import AppConfig
+from mikrotik_audit.models import RadiusResult
+from mikrotik_audit.services.ssh import SSHSession
 
 
 class RadiusRemediator:
+    """Represent radiusremediator."""
     def __init__(self, config: AppConfig, logger: logging.Logger) -> None:
         self.config = config
         self.logger = logger

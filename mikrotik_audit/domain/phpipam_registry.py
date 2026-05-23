@@ -1,15 +1,18 @@
+"""Implementation details for domain phpipam_registry."""
+
 from __future__ import annotations
 
 import logging
 
-from config import PHPIPAMConfig
-from constants.statuses import AuditStatus
-from models import AuditResult
-from services.phpipam import PHPIPAMClient
-from utils import normalize_hostname
+from mikrotik_audit.config import PHPIPAMConfig
+from mikrotik_audit.constants.statuses import AuditStatus
+from mikrotik_audit.models import AuditResult
+from mikrotik_audit.services.phpipam import PHPIPAMClient
+from mikrotik_audit.utils import normalize_hostname
 
 
 class PHPIPAMRegistryService:
+    """Provide the phpipamregistryservice service."""
     def __init__(
         self,
         config: PHPIPAMConfig,

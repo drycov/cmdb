@@ -1,3 +1,5 @@
+"""Implementation details for sot pipeline."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -10,6 +12,7 @@ from .domain import NetworkSnapshot, SnapshotMetadata
 
 @dataclass(slots=True)
 class RawCommandPayload:
+    """Represent rawcommandpayload."""
     device_address: str
     command: str
     collected_at: datetime
@@ -22,6 +25,7 @@ class RawCommandPayload:
 
 @dataclass(slots=True)
 class PipelineContext:
+    """Represent pipelinecontext."""
     snapshot_id: UUID
     scope: str
     started_at: datetime
@@ -43,6 +47,7 @@ class PipelineContext:
 
 @dataclass(slots=True)
 class StageResult:
+    """Represent the stageresult payload."""
     snapshot: NetworkSnapshot | None = None
     warnings: list[str] = field(default_factory=list)
     metrics: dict[str, Any] = field(default_factory=dict)

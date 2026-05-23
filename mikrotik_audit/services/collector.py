@@ -1,16 +1,24 @@
+"""Implementation details for services collector."""
+
 from __future__ import annotations
 
 import logging
 from collections import Counter
 from typing import Any
 
-from commands.mikrotik import MikroTikCommands
-from models import DeviceInfo
-from services.ssh import SSHSession
-from utils import parse_colon_output, parse_detail_blocks, parse_interface_brief, safe_int
+from mikrotik_audit.commands.mikrotik import MikroTikCommands
+from mikrotik_audit.models import DeviceInfo
+from mikrotik_audit.services.ssh import SSHSession
+from mikrotik_audit.utils import (
+    parse_colon_output,
+    parse_detail_blocks,
+    parse_interface_brief,
+    safe_int,
+)
 
 
 class MikroTikCollector:
+    """Represent mikrotikcollector."""
     def __init__(self, logger: logging.Logger) -> None:
         self.logger = logger
 

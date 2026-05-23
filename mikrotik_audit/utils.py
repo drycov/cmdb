@@ -1,3 +1,5 @@
+"""Implementation details for utils."""
+
 from __future__ import annotations
 
 import ipaddress
@@ -10,6 +12,7 @@ from typing import Any, Dict, List, Optional
 # NETWORK
 # =========================
 def network_of_ip(ip: str, prefix: int = 24) -> str:
+    """Handle network of ip."""
     try:
         address = ipaddress.ip_address(ip)
     except ValueError:
@@ -25,14 +28,17 @@ def network_of_ip(ip: str, prefix: int = 24) -> str:
 # COMMON NORMALIZATION
 # =========================
 def normalize_key(key: str) -> str:
+    """Normalize key."""
     return re.sub(r"[\s\-]+", "_", key.strip().lower())
 
 
 def normalize_value(value: str) -> str:
+    """Normalize value."""
     return value.strip()
 
 
 def normalize_hostname(value: str | None) -> str:
+    """Normalize hostname."""
     if not value:
         return ""
 
@@ -54,6 +60,7 @@ def normalize_hostname(value: str | None) -> str:
 
 
 def hostname_tokens(value: str | None) -> list[str]:
+    """Handle hostname tokens."""
     normalized = normalize_hostname(value)
     if not normalized:
         return []
@@ -90,6 +97,7 @@ def hostname_tokens(value: str | None) -> list[str]:
 # PARSERS
 # =========================
 def parse_colon_output(output: str) -> Dict[str, str]:
+    """Parse colon output."""
     data: Dict[str, str] = {}
 
     for raw_line in output.splitlines():
@@ -106,6 +114,7 @@ def parse_colon_output(output: str) -> Dict[str, str]:
 
 
 def parse_detail_blocks(output: str) -> list[dict[str, str]]:
+    """Parse detail blocks."""
     blocks: list[dict[str, str]] = []
     current: dict[str, str] = {}
 
@@ -160,10 +169,12 @@ def parse_detail_blocks(output: str) -> list[dict[str, str]]:
 # VERSION
 # =========================
 def normalize_version(version: str) -> str:
+    """Normalize version."""
     return " ".join(version.strip().split())
 
 
 def _version_tokens(version: str) -> list[tuple[int, object]]:
+    """Internal helper for version tokens."""
     normalized = normalize_version(version)
     tokens: list[tuple[int, object]] = []
 
@@ -177,6 +188,7 @@ def _version_tokens(version: str) -> list[tuple[int, object]]:
 
 
 def compare_versions(left: str, right: str) -> int:
+    """Compare versions."""
     left_tokens = _version_tokens(left)
     right_tokens = _version_tokens(right)
 
@@ -189,6 +201,7 @@ def compare_versions(left: str, right: str) -> int:
 
 
 def extract_version_from_filename(filename: str, architecture: str) -> str:
+    """Extract version from filename."""
     name = filename.strip().lower()
     architecture = architecture.strip().lower()
 
@@ -209,6 +222,7 @@ def extract_version_from_filename(filename: str, architecture: str) -> str:
 # INTERFACES
 # =========================
 def parse_interface_brief(output: str) -> List[Dict[str, Any]]:
+    """Parse interface brief."""
     items: List[Dict[str, Any]] = []
 
     first_line_pattern = re.compile(
@@ -273,6 +287,7 @@ def _build_interface_item(
     flags: str,
     comment: str,
 ) -> Dict[str, Any]:
+    """Internal helper for build interface item."""
     flags = flags.strip()
 
     return {
@@ -291,6 +306,7 @@ def _build_interface_item(
 # EXTRA (новое)
 # =========================
 def safe_int(value: Any) -> Optional[int]:
+    """Safely derive int."""
     try:
         return int(value)
     except Exception:
@@ -298,6 +314,7 @@ def safe_int(value: Any) -> Optional[int]:
 
 
 def safe_bool(value: Any) -> bool:
+    """Safely derive bool."""
     if isinstance(value, bool):
         return value
     if not value:

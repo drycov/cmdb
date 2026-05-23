@@ -1,13 +1,16 @@
+"""Implementation details for services compliance."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
 
-from config import NTPConfig, WatchdogConfig
-from models import DeviceInfo
+from mikrotik_audit.config import NTPConfig, WatchdogConfig
+from mikrotik_audit.models import DeviceInfo
 
 
 @dataclass(slots=True, frozen=True)
 class PolicyCheck:
+    """Represent policycheck."""
     name: str
     status: str
     expected: str
@@ -16,6 +19,7 @@ class PolicyCheck:
 
 
 class DevicePolicyInspector:
+    """Represent devicepolicyinspector."""
     def inspect_ntp(
         self,
         *,

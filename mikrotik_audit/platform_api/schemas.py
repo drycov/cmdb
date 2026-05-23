@@ -1,3 +1,5 @@
+"""Implementation details for platform_api schemas."""
+
 from __future__ import annotations
 
 from datetime import datetime, timezone
@@ -8,6 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class SnapshotCreateRequest(BaseModel):
+    """Define the snapshotcreaterequest schema."""
     model_config = ConfigDict(extra="forbid")
 
     scope: Literal["global", "site", "device_set"] = "global"
@@ -20,6 +23,7 @@ class SnapshotCreateRequest(BaseModel):
 
 
 class SnapshotSummaryResponse(BaseModel):
+    """Define the snapshotsummaryresponse schema."""
     model_config = ConfigDict(extra="forbid")
 
     snapshot_id: UUID
@@ -32,6 +36,7 @@ class SnapshotSummaryResponse(BaseModel):
 
 
 class SnapshotDetailResponse(SnapshotSummaryResponse):
+    """Define the snapshotdetailresponse schema."""
     scope: str
     collector_version: str
     parser_version: str
@@ -39,6 +44,7 @@ class SnapshotDetailResponse(SnapshotSummaryResponse):
 
 
 class SnapshotJobResponse(BaseModel):
+    """Define the snapshotjobresponse schema."""
     model_config = ConfigDict(extra="forbid")
 
     snapshot_id: UUID
@@ -47,6 +53,7 @@ class SnapshotJobResponse(BaseModel):
 
 
 class DeviceSummaryResponse(BaseModel):
+    """Define the devicesummaryresponse schema."""
     model_config = ConfigDict(extra="forbid")
 
     device_id: UUID
@@ -62,7 +69,23 @@ class DeviceSummaryResponse(BaseModel):
     architecture: str | None = None
 
 
+class InventoryEntryResponse(BaseModel):
+    """Define the inventoryentryresponse schema."""
+    model_config = ConfigDict(extra="forbid")
+
+    inventory_type: str
+    inventory_group: str
+    vlan_id: int | None = None
+    vlan_name: str | None = None
+    subnet: str
+    gateway: str | None = None
+    ignored_ips: list[str] = Field(default_factory=list)
+    ospf_instance: str | None = None
+    ospf_area: str | None = None
+
+
 class InterfaceResponse(BaseModel):
+    """Define the interfaceresponse schema."""
     model_config = ConfigDict(extra="forbid")
 
     interface_id: UUID
@@ -82,6 +105,7 @@ class InterfaceResponse(BaseModel):
 
 
 class VlanResponse(BaseModel):
+    """Define the vlanresponse schema."""
     model_config = ConfigDict(extra="forbid")
 
     vlan_id: int
@@ -93,6 +117,7 @@ class VlanResponse(BaseModel):
 
 
 class RouteResponse(BaseModel):
+    """Define the routeresponse schema."""
     model_config = ConfigDict(extra="forbid")
 
     route_id: UUID
@@ -106,6 +131,7 @@ class RouteResponse(BaseModel):
 
 
 class BridgeResponse(BaseModel):
+    """Define the bridgeresponse schema."""
     model_config = ConfigDict(extra="forbid")
 
     bridge_id: UUID
@@ -117,6 +143,7 @@ class BridgeResponse(BaseModel):
 
 
 class NeighborResponse(BaseModel):
+    """Define the neighborresponse schema."""
     model_config = ConfigDict(extra="forbid")
 
     neighbor_id: UUID
@@ -130,6 +157,7 @@ class NeighborResponse(BaseModel):
 
 
 class OspfNeighborResponse(BaseModel):
+    """Define the ospfneighborresponse schema."""
     model_config = ConfigDict(extra="forbid")
 
     ospf_neighbor_id: UUID
@@ -143,6 +171,7 @@ class OspfNeighborResponse(BaseModel):
 
 
 class DeviceDetailResponse(DeviceSummaryResponse):
+    """Define the devicedetailresponse schema."""
     interfaces: list[InterfaceResponse] = Field(default_factory=list)
     vlans: list[VlanResponse] = Field(default_factory=list)
     routes: list[RouteResponse] = Field(default_factory=list)
@@ -152,6 +181,7 @@ class DeviceDetailResponse(DeviceSummaryResponse):
 
 
 class TopologyGraphNodeResponse(BaseModel):
+    """Define the topologygraphnoderesponse schema."""
     model_config = ConfigDict(extra="forbid")
 
     device_id: UUID
@@ -163,6 +193,7 @@ class TopologyGraphNodeResponse(BaseModel):
 
 
 class TopologyGraphEdgeResponse(BaseModel):
+    """Define the topologygraphedgeresponse schema."""
     model_config = ConfigDict(extra="forbid")
 
     link_id: UUID
@@ -176,6 +207,7 @@ class TopologyGraphEdgeResponse(BaseModel):
 
 
 class TopologyGraphResponse(BaseModel):
+    """Define the topologygraphresponse schema."""
     model_config = ConfigDict(extra="forbid")
 
     snapshot_id: UUID
@@ -184,6 +216,7 @@ class TopologyGraphResponse(BaseModel):
 
 
 class BroadcastDomainResponse(BaseModel):
+    """Define the broadcastdomainresponse schema."""
     model_config = ConfigDict(extra="forbid")
 
     broadcast_domain_id: UUID
@@ -197,6 +230,7 @@ class BroadcastDomainResponse(BaseModel):
 
 
 class VlanPropagationResponse(BaseModel):
+    """Define the vlanpropagationresponse schema."""
     model_config = ConfigDict(extra="forbid")
 
     propagation_id: UUID
@@ -211,6 +245,7 @@ class VlanPropagationResponse(BaseModel):
 
 
 class RiskResponse(BaseModel):
+    """Define the riskresponse schema."""
     model_config = ConfigDict(extra="forbid")
 
     risk_id: UUID
@@ -224,6 +259,7 @@ class RiskResponse(BaseModel):
 
 
 class RecommendationResponse(BaseModel):
+    """Define the recommendationresponse schema."""
     model_config = ConfigDict(extra="forbid")
 
     recommendation_id: UUID
@@ -236,6 +272,7 @@ class RecommendationResponse(BaseModel):
 
 
 class RemediationStepResponse(BaseModel):
+    """Define the remediationstepresponse schema."""
     model_config = ConfigDict(extra="forbid")
 
     step_id: UUID
@@ -246,6 +283,7 @@ class RemediationStepResponse(BaseModel):
 
 
 class RemediationPlanRequest(BaseModel):
+    """Define the remediationplanrequest schema."""
     model_config = ConfigDict(extra="forbid")
 
     snapshot_id: UUID
@@ -254,6 +292,7 @@ class RemediationPlanRequest(BaseModel):
 
 
 class RemediationPlanResponse(BaseModel):
+    """Define the remediationplanresponse schema."""
     model_config = ConfigDict(extra="forbid")
 
     plan_id: UUID
@@ -265,6 +304,7 @@ class RemediationPlanResponse(BaseModel):
 
 
 class RawEvidenceResponse(BaseModel):
+    """Define the rawevidenceresponse schema."""
     model_config = ConfigDict(extra="forbid")
 
     device_address: str
@@ -275,3 +315,61 @@ class RawEvidenceResponse(BaseModel):
     parser_name: str | None = None
     parser_version: str | None = None
     warning: str | None = None
+
+
+class CommandDefinitionResponse(BaseModel):
+    """Define the commanddefinitionresponse schema."""
+    model_config = ConfigDict(extra="forbid")
+
+    name: str
+    title: str
+    description: str
+    requires_ip: bool = False
+    supports_ip: bool = False
+    supports_export: bool = False
+    supports_progress: bool = False
+    supports_apply: bool = False
+    supports_domains: bool = False
+
+
+class CommandJobRequest(BaseModel):
+    """Define the commandjobrequest schema."""
+    model_config = ConfigDict(extra="forbid")
+
+    command: Literal[
+        "audit",
+        "export",
+        "phpipam-report",
+        "topology",
+        "generate-script",
+        "backup-configs",
+        "upload-firmware",
+        "ospf-create",
+        "remediate",
+        "radius-fix",
+        "scheduler-fix",
+        "targets",
+    ]
+    ip: str | None = None
+    show_progress: bool = False
+    export_report: bool = False
+    apply_changes: bool = False
+    domains: list[str] = Field(default_factory=list)
+    limit: int | None = None
+
+
+class CommandJobResponse(BaseModel):
+    """Define the commandjobresponse schema."""
+    model_config = ConfigDict(extra="forbid")
+
+    job_id: UUID
+    command: str
+    status: str
+    created_at: datetime
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
+    summary: str = ""
+    output: list[str] = Field(default_factory=list)
+    artifacts: list[str] = Field(default_factory=list)
+    error: str | None = None
+    parameters: dict[str, object] = Field(default_factory=dict)

@@ -1,3 +1,5 @@
+"""Implementation details for report writers json."""
+
 from __future__ import annotations
 
 import json
@@ -5,9 +7,11 @@ from typing import Any
 
 
 class JsonWriter:
+    """Write jsonwriter output."""
     def __init__(self, path: str) -> None:
         self.path = path
         self.f = None
+        self.current_section = ""
 
     def open(self) -> None:
         self.f = open(self.path, "a", encoding="utf-8")
@@ -23,4 +27,5 @@ class JsonWriter:
         pass
 
     def close(self) -> None:
-        self.f.close()
+        if self.f is not None:
+            self.f.close()

@@ -1,3 +1,10 @@
+"""SSH connectivity primitives used by audit, backup, remediation, and firmware flows.
+
+The service layer separates connection lifecycle management from the logic that
+collects or changes device state. That keeps higher-level services reusable and
+lets the team reason about retries, logging, and session behavior in one place.
+"""
+
 from __future__ import annotations
 
 import logging
@@ -27,14 +34,20 @@ try:
 except ModuleNotFoundError:
     pythonping_ping = None
 
-from commands.mikrotik import MikroTikCommands
-from config import AppConfig
-from models import Credentials
+from mikrotik_audit.commands.mikrotik import MikroTikCommands
+from mikrotik_audit.config import AppConfig
+from mikrotik_audit.models import Credentials
 
 T = TypeVar("T")
 
 
 class SSHSession:
+    """Context-managed wrapper around a live Paramiko SSH client.
+
+    A session exposes the small set of operations the rest of the application
+    actually needs: run commands, upload files, check for remote files, and
+    guarantee cleanup even when the underlying Paramiko call fails.
+    """
     def __init__(
         self,
         ip: str,
@@ -69,6 +82,7 @@ class SSHSession:
         return output, err, exit_status
 
     def exec(self, command: str, *, warn_on_error: bool = True) -> str | None:
+        """Run one command and return stdout, or ``None`` on failure."""
         stdin = stdout = stderr = None
 
         try:
@@ -133,6 +147,7 @@ class SSHSession:
             self._safe_close(stderr)
 
     def exec_ok(self, command: str, *, warn_on_error: bool = True) -> bool:
+        """Return ``True`` when a command succeeds with a zero exit status."""
         return self.exec(command, warn_on_error=warn_on_error) is not None
 
     def upload_file_sftp(
@@ -140,6 +155,7 @@ class SSHSession:
         local_path: Path,
         remote_name: str | None = None,
     ) -> bool:
+        """Upload a local file to the remote device over SFTP."""
         sftp: paramiko.SFTPClient | None = None
 
         try:
@@ -185,6 +201,7 @@ class SSHSession:
             self._safe_close(sftp)
 
     def remote_file_exists(self, filename: str) -> bool:
+        """Check whether a file is visible in the RouterOS file list output."""
         out = self.exec(MikroTikCommands.file_print(filename))
         if not out:
             return False
@@ -216,6 +233,12 @@ class SSHSession:
 
 
 class SSHService:
+    """Open SSH sessions and expose compatibility helpers for single-shot actions.
+
+    Most code should prefer `open_session()` and work within a managed session.
+    The wrapper methods remain useful for simpler legacy-style operations and
+    keep those callers from duplicating session lifecycle code.
+    """
     def __init__(self, config: AppConfig, logger: logging.Logger) -> None:
         self.config = config
         self.logger = logger
@@ -237,6 +260,7 @@ class SSHService:
             )
 
     def ping_host(self, ip: str) -> bool:
+        """Probe reachability using the first available ping backend."""
         try:
             if ping3_ping is not None:
                 for _ in range(max(1, self.config.ping_count)):
@@ -291,6 +315,12 @@ class SSHService:
         return client
 
     def open_session(self, ip: str, credentials: Credentials) -> SSHSession | None:
+        """Open a managed SSH session or return ``None`` when connection fails.
+
+        The method performs a ping pre-check to avoid expensive SSH timeouts on
+        obviously offline devices and normalizes transport and auth failures
+        into a `None` result that higher layers can handle uniformly.
+        """
         try:
             self.logger.debug(
                 "SSH session open start ip=%s user=%s",
@@ -352,6 +382,7 @@ class SSHService:
         action: Callable[[SSHSession], T],
         default: T,
     ) -> T:
+        """Run a callback inside a temporary session for compatibility helpers."""
         session = self.open_session(ip, credentials)
         if session is None:
             return default

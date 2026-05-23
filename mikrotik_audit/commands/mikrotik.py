@@ -1,3 +1,5 @@
+"""Implementation details for commands mikrotik."""
+
 from __future__ import annotations
 
 
@@ -6,6 +8,7 @@ class MikroTikCommands:
     # SYSTEM
     # ------------------------------
 
+    """Represent mikrotikcommands."""
     SYSTEM_RESOURCE = "/system resource print"
     SYSTEM_IDENTITY = "/system identity print"
     SYSTEM_ROUTERBOARD = "/system routerboard print"

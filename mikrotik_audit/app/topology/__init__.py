@@ -1,3 +1,5 @@
+"""Implementation details for app topology __init__."""
+
 from __future__ import annotations
 
 from .analyzer import TopologyAnalyzer

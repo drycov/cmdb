@@ -1,16 +1,19 @@
+"""Implementation details for services scheduler."""
+
 from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
 
-from commands.mikrotik import MikroTikCommands
-from config import SchedulerRule
-from services.ssh import SSHSession
-from utils import parse_detail_blocks
+from mikrotik_audit.commands.mikrotik import MikroTikCommands
+from mikrotik_audit.config import SchedulerRule
+from mikrotik_audit.services.ssh import SSHSession
+from mikrotik_audit.utils import parse_detail_blocks
 
 
 @dataclass(slots=True, frozen=True)
 class SchedulerPolicyCheck:
+    """Represent schedulerpolicycheck."""
     name: str
     status: str
     expected_start_time: str
@@ -19,6 +22,7 @@ class SchedulerPolicyCheck:
 
 
 class SchedulerPolicyInspector:
+    """Represent schedulerpolicyinspector."""
     def __init__(self, logger: logging.Logger) -> None:
         self.logger = logger
 

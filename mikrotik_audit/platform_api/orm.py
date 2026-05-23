@@ -1,3 +1,5 @@
+"""Implementation details for platform_api orm."""
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -9,6 +11,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 from .db import Base
 
 class SnapshotRecord(Base):
+    """Represent snapshotrecord."""
     __tablename__ = "snapshots"
 
     snapshot_id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
@@ -25,6 +28,7 @@ class SnapshotRecord(Base):
 
 
 class RawCommandPayloadRecord(Base):
+    """Represent rawcommandpayloadrecord."""
     __tablename__ = "raw_command_payloads"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -40,6 +44,7 @@ class RawCommandPayloadRecord(Base):
 
 
 class SnapshotDeviceRecord(Base):
+    """Represent snapshotdevicerecord."""
     __tablename__ = "snapshot_devices"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -58,6 +63,7 @@ class SnapshotDeviceRecord(Base):
 
 
 class SnapshotInterfaceRecord(Base):
+    """Represent snapshotinterfacerecord."""
     __tablename__ = "snapshot_interfaces"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -79,6 +85,7 @@ class SnapshotInterfaceRecord(Base):
 
 
 class SnapshotVlanRecord(Base):
+    """Represent snapshotvlanrecord."""
     __tablename__ = "snapshot_vlans"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -91,6 +98,7 @@ class SnapshotVlanRecord(Base):
 
 
 class SnapshotRouteRecord(Base):
+    """Represent snapshotrouterecord."""
     __tablename__ = "snapshot_routes"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -108,6 +116,7 @@ class SnapshotRouteRecord(Base):
 
 
 class SnapshotBridgeRecord(Base):
+    """Represent snapshotbridgerecord."""
     __tablename__ = "snapshot_bridges"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -122,6 +131,7 @@ class SnapshotBridgeRecord(Base):
 
 
 class SnapshotNeighborRecord(Base):
+    """Represent snapshotneighborrecord."""
     __tablename__ = "snapshot_neighbors"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -139,6 +149,7 @@ class SnapshotNeighborRecord(Base):
 
 
 class SnapshotOspfNeighborRecord(Base):
+    """Represent snapshotospfneighborrecord."""
     __tablename__ = "snapshot_ospf_neighbors"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -154,6 +165,7 @@ class SnapshotOspfNeighborRecord(Base):
 
 
 class SnapshotTopologyLinkRecord(Base):
+    """Represent snapshottopologylinkrecord."""
     __tablename__ = "snapshot_topology_links"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -170,6 +182,7 @@ class SnapshotTopologyLinkRecord(Base):
 
 
 class SnapshotBroadcastDomainRecord(Base):
+    """Represent snapshotbroadcastdomainrecord."""
     __tablename__ = "snapshot_broadcast_domains"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -183,6 +196,7 @@ class SnapshotBroadcastDomainRecord(Base):
 
 
 class SnapshotVlanPropagationRecord(Base):
+    """Represent snapshotvlanpropagationrecord."""
     __tablename__ = "snapshot_vlan_propagations"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -199,6 +213,7 @@ class SnapshotVlanPropagationRecord(Base):
 
 
 class SnapshotRiskRecord(Base):
+    """Represent snapshotriskrecord."""
     __tablename__ = "snapshot_risks"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -212,6 +227,7 @@ class SnapshotRiskRecord(Base):
 
 
 class SnapshotRecommendationRecord(Base):
+    """Represent snapshotrecommendationrecord."""
     __tablename__ = "snapshot_recommendations"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -223,6 +239,7 @@ class SnapshotRecommendationRecord(Base):
 
 
 class RemediationPlanRecord(Base):
+    """Represent remediationplanrecord."""
     __tablename__ = "remediation_plans"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)

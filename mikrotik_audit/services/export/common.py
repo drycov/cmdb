@@ -1,12 +1,14 @@
+"""Implementation details for services export common."""
+
 from __future__ import annotations
 
 from collections import Counter
 from datetime import datetime, timezone
 from typing import Any, Iterable
 
-from constants.error_codes import FirmwareErrorCode
-from constants.statuses import AuditStatus
-from models import AuditResult
+from mikrotik_audit.constants.error_codes import FirmwareErrorCode
+from mikrotik_audit.constants.statuses import AuditStatus
+from mikrotik_audit.models import AuditResult
 
 
 INVENTORY_HEADERS = [
@@ -51,10 +53,12 @@ VLAN_HEADERS = [
 
 
 def rows_by_headers(results: Iterable[AuditResult], headers: list[str]) -> list[dict[str, Any]]:
+    """Handle rows by headers."""
     return [{header: getattr(result, header, "") for header in headers} for result in results]
 
 
 def build_topology_rows(results: Iterable[AuditResult]) -> list[dict[str, Any]]:
+    """Build topology rows."""
     rows: list[dict[str, Any]] = []
 
     for result in results:
@@ -76,6 +80,7 @@ def build_topology_rows(results: Iterable[AuditResult]) -> list[dict[str, Any]]:
 
 
 def build_phpipam_mismatch_rows(results: Iterable[AuditResult]) -> list[dict[str, Any]]:
+    """Build phpipam mismatch rows."""
     rows: list[dict[str, Any]] = []
 
     for result in results:
@@ -88,6 +93,7 @@ def build_phpipam_mismatch_rows(results: Iterable[AuditResult]) -> list[dict[str
 
 
 def build_issue_rows(results: Iterable[AuditResult]) -> list[dict[str, Any]]:
+    """Build issue rows."""
     rows: list[dict[str, Any]] = []
 
     for result in results:
@@ -108,6 +114,7 @@ def build_issue_rows(results: Iterable[AuditResult]) -> list[dict[str, Any]]:
 
 
 def build_vlan_rows(results: Iterable[AuditResult]) -> list[dict[str, Any]]:
+    """Build vlan rows."""
     rows: list[dict[str, Any]] = []
 
     for result in results:
@@ -135,6 +142,7 @@ def build_vlan_rows(results: Iterable[AuditResult]) -> list[dict[str, Any]]:
 
 
 def build_summary_rows(results: list[AuditResult]) -> list[tuple[str, Any]]:
+    """Build summary rows."""
     status_counts = Counter()
     flag_counts = Counter()
     firmware_error_counts = Counter()
@@ -227,6 +235,7 @@ def build_summary_rows(results: list[AuditResult]) -> list[tuple[str, Any]]:
 
 
 def build_report_sections(results: list[AuditResult], *, inventory_file: str, output_xlsx: str) -> list[tuple[str, list[tuple[str, Any]]]]:
+    """Build report sections."""
     summary = dict(build_summary_rows(results))
 
     return [

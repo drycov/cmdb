@@ -1,13 +1,16 @@
+"""Implementation details for app topology models."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import List
 
-from models.device_info import DeviceInfo
+from mikrotik_audit.models.device_info import DeviceInfo
 
 
 @dataclass
 class TopologyDevice:
+    """Represent topologydevice."""
     ip: str
     status: str = ""
     identity: str = ""
@@ -29,6 +32,7 @@ class TopologyDevice:
 
 @dataclass
 class TopologyLink:
+    """Represent topologylink."""
     source_ip: str
     source_identity: str
     source_interface: str
@@ -43,6 +47,7 @@ class TopologyLink:
 
 @dataclass
 class TopologyAnalysisResult:
+    """Represent the topologyanalysisresult payload."""
     device: TopologyDevice
     status: str = ""
     error: str = ""

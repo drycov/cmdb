@@ -1,3 +1,5 @@
+"""Implementation details for logging_setup."""
+
 from __future__ import annotations
 
 import logging
@@ -5,14 +7,16 @@ import os
 from logging.handlers import QueueHandler, QueueListener, RotatingFileHandler
 from queue import SimpleQueue
 
-from config import AppConfig
+from mikrotik_audit.config import AppConfig
 
 
 def _resolve_level(name: str, default: int) -> int:
+    """Internal helper for resolve level."""
     return getattr(logging, str(name).upper().strip(), default)
 
 
 def _close_handler(handler: logging.Handler) -> None:
+    """Internal helper for close handler."""
     try:
         handler.flush()
     except Exception:
@@ -24,6 +28,7 @@ def _close_handler(handler: logging.Handler) -> None:
 
 
 def shutdown_logging(logger: logging.Logger | None) -> None:
+    """Handle shutdown logging."""
     if logger is None:
         return
 
@@ -42,6 +47,7 @@ def shutdown_logging(logger: logging.Logger | None) -> None:
 
 
 def setup_logging(config: AppConfig) -> logging.Logger:
+    """Handle setup logging."""
     os.makedirs(config.log_dir, exist_ok=True)
 
     for logger_name in (

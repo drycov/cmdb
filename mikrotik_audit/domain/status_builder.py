@@ -1,12 +1,15 @@
+"""Implementation details for domain status_builder."""
+
 from __future__ import annotations
 
 from typing import List
 
-from constants.statuses import AuditStatus
-from models import AuditResult
+from mikrotik_audit.constants.statuses import AuditStatus
+from mikrotik_audit.models import AuditResult
 
 
 class StatusBuilder:
+    """Represent statusbuilder."""
     @staticmethod
     def build_primary(result: AuditResult) -> str:
         parts: List[str] = [AuditStatus.SSH_OK.value]

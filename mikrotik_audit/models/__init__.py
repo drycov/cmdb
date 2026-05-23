@@ -1,3 +1,5 @@
+"""Implementation details for models __init__."""
+
 from .audit_result import AuditResult
 from .device_info import DeviceInfo
 from .firmware_result import FirmwareResult

@@ -1,17 +1,20 @@
+"""Implementation details for services config_backup."""
+
 from __future__ import annotations
 
 import re
 from dataclasses import dataclass
 from pathlib import Path
 
-from config import AppConfig
-from models import Credentials
-from services.script_repository import ScriptRepository
-from services.ssh import SSHService, SSHSession
+from mikrotik_audit.config import AppConfig
+from mikrotik_audit.models import Credentials
+from mikrotik_audit.services.script_repository import ScriptRepository
+from mikrotik_audit.services.ssh import SSHService, SSHSession
 
 
 @dataclass(slots=True)
 class ConfigBackupResult:
+    """Represent the configbackupresult payload."""
     ip: str
     identity: str
     auth_method: str
@@ -19,6 +22,7 @@ class ConfigBackupResult:
 
 
 class ConfigBackupService:
+    """Provide the configbackupservice service."""
     def __init__(
         self,
         *,
@@ -64,6 +68,7 @@ class ConfigBackupService:
                 relative_path=relative_path,
                 content=content,
                 commit_message=f"config backup update for {identity} ({ip})",
+                auto_commit=False,
             )
             return ConfigBackupResult(
                 ip=ip,
@@ -71,6 +76,16 @@ class ConfigBackupService:
                 auth_method=auth_method,
                 path=str(path),
             )
+
+    def finalize_batch_commit(self, updated_paths: list[str]) -> bool:
+        if not self.config.backup.git_enabled:
+            return False
+        if not updated_paths:
+            return False
+
+        unique_paths = len(set(updated_paths))
+        message = f"config backup batch update ({unique_paths} files)"
+        return self.repository.commit_pending(message)
 
     def _open_session(self, ip: str) -> tuple[SSHSession, str] | None:
         for index, cred in enumerate(self.config.mikrotik_credentials):

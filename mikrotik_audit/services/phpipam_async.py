@@ -1,3 +1,5 @@
+"""Implementation details for services phpipam_async."""
+
 from __future__ import annotations
 
 import ipaddress
@@ -7,11 +9,12 @@ from typing import Any
 
 import httpx
 
-from config import PHPIPAMConfig
-from models import AuditResult
+from mikrotik_audit.config import PHPIPAMConfig
+from mikrotik_audit.models import AuditResult
 
 
 class AsyncPHPIPAMClient:
+    """Communicate through the asyncphpipamclient client."""
     def __init__(self, config: PHPIPAMConfig, logger: logging.Logger) -> None:
         self.config = config
         self.logger = logger

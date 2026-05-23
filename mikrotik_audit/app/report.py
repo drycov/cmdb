@@ -1,20 +1,99 @@
+"""Implementation details for app report."""
+
 from __future__ import annotations
 
 import json
-from typing import Dict
+import re
+from typing import Dict, Iterable
 
+from .analysis_support import (
+    PORT_HEADERS,
+    PORT_HEADERS_WITH_IDENTITY,
+    SUMMARY_HEADERS,
+    build_all_port_rows,
+    build_port_rows,
+    build_summary_row,
+    build_summary_rows,
+)
 from .models import AnalysisResult
 
 
+TERMINATION_HEADERS = ["object", "node", "ip", "vlan"]
+_OBJECT_TOKEN_RE = re.compile(r"^(?:ovn\d+(?:-\d+)?|lu\d+(?:-\d+)?|p\d+(?:-\d+)?|\d{3,5})$", re.IGNORECASE)
+
+
+def _extract_comment_objects(comment: str | None) -> list[str]:
+    """Internal helper for extract comment objects."""
+    if not comment:
+        return []
+
+    raw_tokens = re.split(r"[+_/\s,;]+", comment)
+    objects: list[str] = []
+    seen: set[str] = set()
+
+    for raw_token in raw_tokens:
+        token = raw_token.strip().strip("\"'()[]{}").lower()
+        if not token or not _OBJECT_TOKEN_RE.match(token):
+            continue
+        if token in seen:
+            continue
+        seen.add(token)
+        objects.append(token)
+
+    return objects
+
+
+def _port_vlans(port) -> list[int]:
+    """Internal helper for port vlans."""
+    vlans = set(port.tagged_vlans or [])
+    vlans.update(port.untagged_vlans or [])
+    if port.pvid is not None:
+        vlans.add(port.pvid)
+    return sorted(vlans)
+
+
+def _build_termination_rows(result: AnalysisResult) -> list[dict[str, object]]:
+    """Internal helper for build termination rows."""
+    rows: list[dict[str, object]] = []
+    seen: set[tuple[str, str, str, str]] = set()
+    device = result.device
+
+    for port in device.ports.values():
+        objects = _extract_comment_objects(port.comment)
+        if not objects:
+            continue
+
+        vlan_values = _port_vlans(port)
+        vlan_text = ",".join(str(vlan) for vlan in vlan_values)
+
+        for object_name in objects:
+            key = (object_name, device.identity, device.mgmt_ip or "", vlan_text)
+            if key in seen:
+                continue
+            seen.add(key)
+            rows.append(
+                {
+                    "object": object_name,
+                    "node": device.identity,
+                    "ip": device.mgmt_ip or "",
+                    "vlan": vlan_text,
+                }
+            )
+
+    rows.sort(key=lambda row: (str(row["object"]), str(row["node"]), str(row["ip"]), str(row["vlan"])))
+    return rows
+
+
 def to_json(result: AnalysisResult) -> str:
-    def _port_to_dict(p):
+    """Handle to json."""
+    def _port_to_dict(port):
         return {
-            "role": p.role,
-            "tagged_vlans": p.tagged_vlans,
-            "untagged_vlans": p.untagged_vlans,
-            "pvid": p.pvid,
-            "comment": p.comment,
-            "confidence": p.confidence,
+            "role": port.role,
+            "tagged_vlans": port.tagged_vlans,
+            "untagged_vlans": port.untagged_vlans,
+            "pvid": port.pvid,
+            "comment": port.comment,
+            "confidence": port.confidence,
         }
 
     dev = result.device
@@ -34,6 +113,7 @@ def to_json(result: AnalysisResult) -> str:
 
 
 def to_markdown(result: AnalysisResult) -> str:
+    """Handle to markdown."""
     dev = result.device
     lines = []
     lines.append(f"# Analysis {dev.identity} ({dev.model})")
@@ -64,103 +144,29 @@ def to_markdown(result: AnalysisResult) -> str:
 
 
 def build_sections_from_analysis(result: AnalysisResult) -> dict:
-    dev = result.device
-    summary_headers = [
-        "identity",
-        "mgmt_ip",
-        "model",
-        "transit_detected",
-        "radio_detected",
-        "decision",
-        "risks",
-        "recommendations",
-    ]
-    summary_row = {
-        "identity": dev.identity,
-        "mgmt_ip": dev.mgmt_ip,
-        "model": dev.model,
-        "transit_detected": result.transit_detected,
-        "radio_detected": result.radio_detected,
-        "decision": result.decision,
-        "risks": ", ".join(result.risks),
-        "recommendations": ", ".join(result.recommendations),
-    }
-
-    ports_headers = ["port", "role", "tagged_vlans", "untagged_vlans", "pvid", "comment", "confidence"]
-    ports_rows = []
-    for n, p in dev.ports.items():
-        ports_rows.append(
-            {
-                "port": n,
-                "role": p.role,
-                "tagged_vlans": ",".join(str(x) for x in p.tagged_vlans),
-                "untagged_vlans": ",".join(str(x) for x in p.untagged_vlans),
-                "pvid": p.pvid,
-                "comment": p.comment,
-                "confidence": p.confidence,
-            }
-        )
-
+    """Build sections from analysis."""
     sections = {
-        "analyzer_summary": (summary_headers, [summary_row]),
-        "analyzer_ports": (ports_headers, ports_rows),
+        "analyzer_summary": (SUMMARY_HEADERS, [build_summary_row(result)]),
+        "analyzer_ports": (PORT_HEADERS, build_port_rows(result)),
+        "terminations": (TERMINATION_HEADERS, _build_termination_rows(result)),
     }
     return sections
 
 
 def build_sections_from_analyses(results: list[AnalysisResult]) -> dict:
-    summary_headers = [
-        "identity",
-        "mgmt_ip",
-        "model",
-        "transit_detected",
-        "radio_detected",
-        "decision",
-        "risks",
-        "recommendations",
-    ]
-    summary_rows: list[dict[str, object]] = []
-    ports_headers = [
-        "identity",
-        "port",
-        "role",
-        "tagged_vlans",
-        "untagged_vlans",
-        "pvid",
-        "comment",
-        "confidence",
-    ]
-    ports_rows: list[dict[str, object]] = []
-
-    for result in results:
-        dev = result.device
-        summary_rows.append(
-            {
-                "identity": dev.identity,
-                "mgmt_ip": dev.mgmt_ip,
-                "model": dev.model,
-                "transit_detected": result.transit_detected,
-                "radio_detected": result.radio_detected,
-                "decision": result.decision,
-                "risks": ", ".join(result.risks),
-                "recommendations": ", ".join(result.recommendations),
-            }
-        )
-        for n, p in dev.ports.items():
-            ports_rows.append(
-                {
-                    "identity": dev.identity,
-                    "port": n,
-                    "role": p.role,
-                    "tagged_vlans": ",".join(str(x) for x in p.tagged_vlans),
-                    "untagged_vlans": ",".join(str(x) for x in p.untagged_vlans),
-                    "pvid": p.pvid,
-                    "comment": p.comment,
-                    "confidence": p.confidence,
-                }
-            )
+    """Build sections from analyses."""
+    termination_rows = _build_termination_rows_for_all(results)
 
     return {
-        "analyzer_summary": (summary_headers, summary_rows),
-        "analyzer_ports": (ports_headers, ports_rows),
+        "analyzer_summary": (SUMMARY_HEADERS, build_summary_rows(results)),
+        "analyzer_ports": (PORT_HEADERS_WITH_IDENTITY, build_all_port_rows(results)),
+        "terminations": (TERMINATION_HEADERS, termination_rows),
     }
+
+
+def _build_termination_rows_for_all(results: Iterable[AnalysisResult]) -> list[dict[str, object]]:
+    """Internal helper for build termination rows for all."""
+    rows: list[dict[str, object]] = []
+    for result in results:
+        rows.extend(_build_termination_rows(result))
+    return rows

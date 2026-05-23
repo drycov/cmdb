@@ -1,16 +1,19 @@
+"""Implementation details for models audit_result."""
+
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
 from typing import Any, ClassVar, List
 
-from constants.auth_methods import AuthMethod
-from models.device_info import DeviceInfo
-from models.firmware_result import FirmwareResult
-from models.radius_result import RadiusResult
+from mikrotik_audit.constants.auth_methods import AuthMethod
+from mikrotik_audit.models.device_info import DeviceInfo
+from mikrotik_audit.models.firmware_result import FirmwareResult
+from mikrotik_audit.models.radius_result import RadiusResult
 
 
 @dataclass(slots=True)
 class AuditResult:
+    """Represent the auditresult payload."""
     EXPORT_HEADERS: ClassVar[List[str]] = [
         "ip",
         "subnet",

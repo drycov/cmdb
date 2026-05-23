@@ -1,9 +1,11 @@
+"""Implementation details for sot adapters."""
+
 from __future__ import annotations
 
 from ipaddress import IPv4Address, ip_address
 
-from models.audit_result import AuditResult
-from models.device_info import DeviceInfo
+from mikrotik_audit.models.audit_result import AuditResult
+from mikrotik_audit.models.device_info import DeviceInfo
 
 from .domain import (
     Bridge,
@@ -20,6 +22,7 @@ from .domain import (
 
 
 def _safe_int(value: object) -> int | None:
+    """Internal helper for safe int."""
     try:
         if value in ("", None):
             return None
@@ -29,6 +32,7 @@ def _safe_int(value: object) -> int | None:
 
 
 def _bool_from_routeros(value: object) -> bool | None:
+    """Internal helper for bool from routeros."""
     if value in ("", None):
         return None
     normalized = str(value).strip().lower()
@@ -58,6 +62,7 @@ def _safe_ipv4_address(value: object) -> IPv4Address | None:
 
 
 def device_from_device_info(info: DeviceInfo, *, management_ip: str | None = None) -> Device:
+    """Handle device from device info."""
     device = Device(
         identity=info.identity or management_ip or "unknown-device",
         management_ip=_safe_ipv4_address(management_ip),
@@ -159,10 +164,12 @@ def device_from_device_info(info: DeviceInfo, *, management_ip: str | None = Non
 
 
 def device_from_audit_result(result: AuditResult) -> Device:
+    """Handle device from audit result."""
     return device_from_device_info(result.to_device_info(), management_ip=result.ip)
 
 
 def _extract_named_value(serialized: str, name: str) -> str | None:
+    """Internal helper for extract named value."""
     for item in serialized.split(","):
         item = item.strip()
         if not item:
@@ -184,6 +191,7 @@ def _upsert_interface(
     untagged_vlan: int | None = None,
     pvid: int | None = None,
 ) -> None:
+    """Internal helper for upsert interface."""
     existing = next((item for item in device.interfaces if item.name == interface_name), None)
     if existing is None:
         existing = Interface(device_id=device.device_id, name=interface_name)

@@ -1,3 +1,5 @@
+"""Implementation details for services export google_sheets."""
+
 from __future__ import annotations
 
 import logging
@@ -7,7 +9,7 @@ from typing import Any, Callable, Iterable
 import gspread
 from google.oauth2.service_account import Credentials
 
-from models import AuditResult
+from mikrotik_audit.models import AuditResult
 
 from .common import (
     INVENTORY_HEADERS,
@@ -23,6 +25,7 @@ from .common import (
 
 
 class GoogleSheetsExporter:
+    """Represent googlesheetsexporter."""
     INVENTORY_SHEET = "mikrotik_inventory"
     SUMMARY_SHEET = "summary"
     TOPOLOGY_SHEET = "topology"

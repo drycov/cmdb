@@ -1,3 +1,5 @@
+"""Implementation details for platform_api repositories."""
+
 from __future__ import annotations
 
 from uuid import UUID
@@ -5,7 +7,7 @@ from uuid import UUID
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from sot.domain import (
+from mikrotik_audit.sot.domain import (
     BroadcastDomain,
     Bridge,
     Device,
@@ -22,8 +24,8 @@ from sot.domain import (
     VLAN,
     VLANPropagation,
 )
-from sot.pipeline import RawCommandPayload
-from sot.repositories import (
+from mikrotik_audit.sot.pipeline import RawCommandPayload
+from mikrotik_audit.sot.repositories import (
     DeviceRepository,
     EvidenceRepository,
     L2Repository,
@@ -54,6 +56,7 @@ from .orm import (
 
 
 class SqlAlchemySnapshotRepository(SnapshotRepository):
+    """Persist data through the sqlalchemysnapshotrepository repository."""
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
 
@@ -110,6 +113,7 @@ class SqlAlchemySnapshotRepository(SnapshotRepository):
 
 
 class SqlAlchemyEvidenceRepository(EvidenceRepository):
+    """Persist data through the sqlalchemyevidencerepository repository."""
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
 
@@ -156,6 +160,7 @@ class SqlAlchemyEvidenceRepository(EvidenceRepository):
 
 
 class SqlAlchemyDeviceRepository(DeviceRepository):
+    """Persist data through the sqlalchemydevicerepository repository."""
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
 
@@ -376,6 +381,7 @@ class SqlAlchemyDeviceRepository(DeviceRepository):
 
 
 class SqlAlchemyTopologyRepository(TopologyRepository):
+    """Persist data through the sqlalchemytopologyrepository repository."""
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
 
@@ -412,6 +418,7 @@ class SqlAlchemyTopologyRepository(TopologyRepository):
 
 
 class SqlAlchemyL2Repository(L2Repository):
+    """Persist data through the sqlalchemyl2repository repository."""
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
 
@@ -480,6 +487,7 @@ class SqlAlchemyL2Repository(L2Repository):
 
 
 class SqlAlchemyRiskRepository(RiskRepository):
+    """Persist data through the sqlalchemyriskrepository repository."""
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
 
@@ -513,6 +521,7 @@ class SqlAlchemyRiskRepository(RiskRepository):
 
 
 class SqlAlchemyRecommendationRepository(RecommendationRepository):
+    """Persist data through the sqlalchemyrecommendationrepository repository."""
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
 
@@ -546,6 +555,7 @@ class SqlAlchemyRecommendationRepository(RecommendationRepository):
 
 
 class SqlAlchemyRemediationRepository(RemediationRepository):
+    """Persist data through the sqlalchemyremediationrepository repository."""
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
 
@@ -570,6 +580,7 @@ class SqlAlchemyRemediationRepository(RemediationRepository):
 
 
 def _metadata_from_record(record: SnapshotRecord) -> SnapshotMetadata:
+    """Internal helper for metadata from record."""
     return SnapshotMetadata(
         snapshot_id=UUID(str(record.snapshot_id)),
         scope=record.scope,
@@ -583,6 +594,7 @@ def _metadata_from_record(record: SnapshotRecord) -> SnapshotMetadata:
 
 
 def _bool_to_int(value: bool | None) -> int | None:
+    """Internal helper for bool to int."""
     if value is None:
         return None
     return 1 if value else 0

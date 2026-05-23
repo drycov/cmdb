@@ -1,10 +1,12 @@
+"""Implementation details for services setup_mode."""
+
 from __future__ import annotations
 
 from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
-from config import AppConfig, load_yaml_file
+from mikrotik_audit.config import AppConfig, load_yaml_file
 
 try:
     import yaml
@@ -13,6 +15,7 @@ except ModuleNotFoundError:
 
 
 class SetupModeService:
+    """Provide the setupmodeservice service."""
     def __init__(self, config: AppConfig) -> None:
         self.config = config
         self.inventory_path = Path(config.inventory_path)

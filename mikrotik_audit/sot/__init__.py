@@ -1,3 +1,5 @@
+"""Implementation details for sot __init__."""
+
 from .adapters import device_from_audit_result, device_from_device_info
 from .contracts import (
     CollectorPlugin,

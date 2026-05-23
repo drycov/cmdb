@@ -1,3 +1,5 @@
+"""Implementation details for services routeros_script_generator."""
+
 from __future__ import annotations
 
 import ipaddress
@@ -7,15 +9,16 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable
 
-from commands.mikrotik import MikroTikCommands
-from config import AppConfig, load_yaml_file
-from models import AuditResult, Credentials
-from services.collector import MikroTikCollector
-from services.ssh import SSHService
+from mikrotik_audit.commands.mikrotik import MikroTikCommands
+from mikrotik_audit.config import AppConfig, load_yaml_file, normalize_inventory_data
+from mikrotik_audit.models import AuditResult, Credentials
+from mikrotik_audit.services.collector import MikroTikCollector
+from mikrotik_audit.services.ssh import SSHService
 
 
 @dataclass(slots=True)
 class GatewayTemplate:
+    """Represent gatewaytemplate."""
     vlan_id: str
     gateway_interface: str
     target_interface: str
@@ -30,6 +33,7 @@ class GatewayTemplate:
 
 @dataclass(slots=True)
 class GenerationPlan:
+    """Represent generationplan."""
     result: AuditResult
     vlan: dict[str, Any]
     matched_network: dict[str, Any]
@@ -44,6 +48,7 @@ class GenerationPlan:
 
 
 class RouterOSScriptGenerator:
+    """Represent routerosscriptgenerator."""
     def __init__(
         self,
         config: AppConfig,
@@ -505,7 +510,7 @@ class RouterOSScriptGenerator:
         if not path.exists():
             raise FileNotFoundError(f"Inventory file not found: {path.resolve()}")
 
-        data = load_yaml_file(path)
+        data = normalize_inventory_data(load_yaml_file(path))
         if not isinstance(data, dict):
             raise ValueError("Inventory root must be a mapping/dict")
         return data

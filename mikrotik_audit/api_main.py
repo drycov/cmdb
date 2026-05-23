@@ -1,6 +1,5 @@
+"""Compatibility API entry point for launching the packaged FastAPI application."""
+
 from __future__ import annotations
 
-from platform_api import create_app
-
-
-app = create_app()
+from mikrotik_audit.entrypoints.api import app

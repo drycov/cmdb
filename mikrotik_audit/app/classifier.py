@@ -1,3 +1,5 @@
+"""Implementation details for app classifier."""
+
 from __future__ import annotations
 
 from typing import Dict, List
@@ -6,6 +8,7 @@ from .models import DeviceModel, PortModel
 
 
 def _to_ints(vals: str | None) -> List[int]:
+    """Internal helper for to ints."""
     if not vals:
         return []
     parts = [p.strip() for p in vals.replace(";", ",").split(",") if p.strip()]
@@ -25,6 +28,7 @@ def _to_ints(vals: str | None) -> List[int]:
 
 def classify_ports(device: DeviceModel) -> None:
     # populate PortModel entries from bridge ports, ethernet and bridge vlans
+    """Handle classify ports."""
     bridge_ports = device.raw_sections.get("/interface bridge port", [])
     ether_if = {
         e.get("name")

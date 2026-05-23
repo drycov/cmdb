@@ -1,3 +1,5 @@
+"""Implementation details for app parser."""
+
 from __future__ import annotations
 
 import re
@@ -5,6 +7,7 @@ from typing import Dict, List
 
 
 def _parse_kv_pairs(text: str) -> Dict[str, str]:
+    """Internal helper for parse kv pairs."""
     pairs: Dict[str, str] = {}
     # simple key=value parsing, handles quoted values
     for m in re.finditer(r"(\S+?)=(\".*?\"|\S+)", text):
@@ -17,6 +20,7 @@ def _parse_kv_pairs(text: str) -> Dict[str, str]:
 
 
 def parse_rsc(path: str) -> Dict[str, List[Dict[str, str]]]:
+    """Parse rsc."""
     sections: Dict[str, List[Dict[str, str]]] = {}
     current_section = None
     with open(path, "r", encoding="utf-8", errors="ignore") as f:

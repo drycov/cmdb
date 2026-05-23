@@ -1,3 +1,5 @@
+"""Implementation details for services script_repository."""
+
 from __future__ import annotations
 
 import logging
@@ -6,6 +8,7 @@ from pathlib import Path
 
 
 class ScriptRepository:
+    """Persist data through the scriptrepository repository."""
     def __init__(
         self,
         *,
@@ -25,6 +28,7 @@ class ScriptRepository:
         self.author_email = author_email
         self.logger = logger or logging.getLogger(__name__)
         self._repo_ready = False
+        self._pending_repo_relatives: set[Path] = set()
 
         if self.git_enabled:
             self.base_dir = self.git_repo_dir / self.git_subdir if self.git_subdir else self.git_repo_dir
@@ -39,6 +43,7 @@ class ScriptRepository:
         relative_path: str,
         content: str,
         commit_message: str,
+        auto_commit: bool = True,
     ) -> Path:
         target_path = self.base_dir / relative_path
         target_path.parent.mkdir(parents=True, exist_ok=True)
@@ -57,9 +62,27 @@ class ScriptRepository:
             self._ensure_repo()
             repo_relative = target_path.relative_to(self.git_repo_dir)
             self._git_add(repo_relative)
-            self._git_commit_if_needed(repo_relative, commit_message)
+            if auto_commit:
+                self._git_commit_if_needed(repo_relative, commit_message)
+            else:
+                self._pending_repo_relatives.add(repo_relative)
 
         return target_path
+
+    def commit_pending(self, message: str) -> bool:
+        if not self.git_enabled:
+            return False
+
+        self._ensure_repo()
+        status = self._git("status", "--porcelain", capture_output=True)
+        if not status.stdout.strip():
+            self.logger.info("Git script repo has no pending changes for batch commit")
+            self._pending_repo_relatives.clear()
+            return False
+
+        self._git("commit", "-m", message)
+        self._pending_repo_relatives.clear()
+        return True
 
     def _ensure_repo(self) -> None:
         if self._repo_ready:
@@ -72,6 +95,8 @@ class ScriptRepository:
 
         self._git("config", "user.name", self.author_name)
         self._git("config", "user.email", self.author_email)
+        self._git("config", "core.autocrlf", "false")
+        self._git("config", "core.eol", "lf")
         self._repo_ready = True
 
     def _git_add(self, repo_relative: Path) -> None:
@@ -91,7 +116,7 @@ class ScriptRepository:
             command,
             cwd=str(self.git_repo_dir),
             text=True,
-            capture_output=capture_output,
+            capture_output=True,
             check=False,
         )
         if result.returncode != 0:
